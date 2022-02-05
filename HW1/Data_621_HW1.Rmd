@@ -14,6 +14,7 @@ knitr::opts_chunk$set(echo = FALSE)
 
 ```{r include=FALSE}
 library("corrplot")
+library(MASS)
 ```
 
 ```{r}
@@ -109,108 +110,313 @@ There are some variables such as TEAM_BASERUN_SB that are slightly right skewed.
 
 # DATA PREPARATION
 
-```{r}
+## * **Dropping variables**
 
+**TEAM_BATTING_HBP** is dropped for the following reason(s)
+
+* 91.6% of the data are missing
+
+**TEAM_PITCHING_HR** is dropped for the following reason(s) 
+
+* nearly perfectly correlated with one other variable
+* do not have correlation matching with the theoretical effect
+  
+**TEAM_PITCHING_H*,*TEAM_PITCHING_BB*,*TEAM_PITCHING_SO** are dropped for the following reason(s) 
+
+* nearly perfectly correlated with one other variable
+* do not have correlation matching with the theoretical effect
+* large outliers
+
+```{r}
+train_prepared_df <- train_raw_df
+train_prepared_df$TEAM_BATTING_HBP <- NULL
+train_prepared_df$TEAM_PITCHING_HR <- NULL
+train_prepared_df$TEAM_PITCHING_H <- NULL
+train_prepared_df$TEAM_PITCHING_BB <- NULL
+train_prepared_df$TEAM_PITCHING_SO <- NULL
+```
+
+## * **Transforming variables**
+
+Since **TEAM_FIELDING_E** is extremely right skewed, we will transform the variable using Box-Cox transformation
+ 
+The optimal lamba from the following result plot is near -1, so we will transform the variable using the power of -1  
+
+```{r fig.height=4, fig.width=5}
+boxcox(lm(train_prepared_df$TEAM_FIELDING_E ~ 1))
+```
+```{r}
+train_prepared_df$TEAM_FIELDING_E_Transformed <- train_prepared_df$TEAM_FIELDING_E^(-1)
+train_prepared_df$TEAM_FIELDING_E <- NULL
+```
+  
+The following density plot and box plot show that the distribution is closer to normal and there are no extreme ourliers.
+```{r fig.height=3, fig.width=6}
+par(mfrow=c(1,2))
+plot(density(train_prepared_df$TEAM_FIELDING_E_Transformed),main="",xlab="")
+boxplot(train_prepared_df$TEAM_FIELDING_E_Transformed,main="")
+```
+
+Since **TEAM_BATTING_H** also counts the number of **TEAM_BATTING_2B**, **TEAM_BATTING_3B** and **TEAM_BATTING_3B**.  
+Instead of using **TEAM_BATTING_H**, we will create a new variable **TEAM_BATTING_1B** by subtracting **TEAM_BATTING_2B**, **TEAM_BATTING_3B** and **TEAM_BATTING_3B** from **TEAM_BATTING_H**
+
+```{r}
+train_prepared_df$TEAM_BATTING_1B <- train_prepared_df$TEAM_BATTING_H - train_prepared_df$TEAM_BATTING_2B - train_prepared_df$TEAM_BATTING_3B - train_prepared_df$TEAM_BATTING_HR
+train_prepared_df$TEAM_BATTING_H <- NULL
+```
+
+The distribution of the new variable is slightly right skewed. We will keep it as it for now unless transformation is necessary when developing a model.
+
+```{r fig.height=3, fig.width=6}
+par(mfrow=c(1,2))
+plot(density(train_prepared_df$TEAM_BATTING_1B),main="",xlab="")
+boxplot(train_prepared_df$TEAM_BATTING_1B,main="")
+```
+
+## * **Imputation for Missing Values**
+
+
+The only problem now is the missing values in **TEAM_BATTING_SO**, **TEAM_BASERUN_SB**, **TEAM_BASERUN_CS** and **TEAM_FIELDING_DP**
+
+
+We will impute the missing values by using linear regression models. We will not go deep into evaluating these models in this project. The purpose here is to impute missing values have better explained variance than simply using the means or medians.
+
+In the imputation models, **TARGET_WINS** is not included as an independent variable since the values are not provided in the test data set. We will need to use the same models to impute missing values in the test data set.
+
+
+
+Since missing values may appear in multiple variables at the same time, we will impute the variable one by one.
+First we build one model for each of the variables with missing values, with all 4 variables excluded from the regression.  
+
+Then we compare the R-squared values of all models and impute the variable with the highest R-squared value in its model.
+As one of the variable is imputed, we can rebuild the other models with imputed variable included in the regression.  
+
+We repeat this process until all variables are imputed  
+
+
+The R-squared values of the models for the first round are:
+```{r}
+lm_team_bat_so <- lm(TEAM_BATTING_SO ~ . - TARGET_WINS - TEAM_BASERUN_SB - TEAM_BASERUN_CS - TEAM_FIELDING_DP, data = train_prepared_df)
+lm_team_bas_sb <- lm(TEAM_BASERUN_SB ~ . - TARGET_WINS - TEAM_BATTING_SO - TEAM_BASERUN_CS - TEAM_FIELDING_DP, data = train_prepared_df)
+lm_team_bas_cs <- lm(TEAM_BASERUN_CS ~ . - TARGET_WINS - TEAM_BATTING_SO - TEAM_BASERUN_SB - TEAM_FIELDING_DP, data = train_prepared_df)
+lm_team_fld_dp <- lm(TEAM_FIELDING_DP ~ . - TARGET_WINS - TEAM_BATTING_SO - TEAM_BASERUN_SB - TEAM_BASERUN_CS, data = train_prepared_df)
+```
+```{r}
+print(paste0("TEAM_BATTING_SO - R-squared:",toString(round(summary(lm_team_bat_so)$r.squared,4))))
+print(paste0("TEAM_BASERUN_SB - R-squared:",toString(round(summary(lm_team_bas_sb)$r.squared,4))))
+print(paste0("TEAM_BASERUN_CS - R-squared:",toString(round(summary(lm_team_bas_cs)$r.squared,4))))
+print(paste0("TEAM_FIELDING_DP - R-squared:",toString(round(summary(lm_team_fld_dp)$r.squared,4))))
+```
+We impute the missing values for **TEAM_BATTING_SO** and rebuild the other 3 models
+
+```{r}
+train_prepared_df[is.na(train_prepared_df$TEAM_BATTING_SO),]$TEAM_BATTING_SO <- predict(lm_team_bat_so,train_prepared_df[is.na(train_prepared_df$TEAM_BATTING_SO),])
+```
+
+The R-squared values of the models for the second round are:
+```{r}
+lm_team_bas_sb <- lm(TEAM_BASERUN_SB ~ . - TARGET_WINS  - TEAM_BASERUN_CS - TEAM_FIELDING_DP, data = train_prepared_df)
+lm_team_bas_cs <- lm(TEAM_BASERUN_CS ~ . - TARGET_WINS  - TEAM_BASERUN_SB - TEAM_FIELDING_DP, data = train_prepared_df)
+lm_team_fld_dp <- lm(TEAM_FIELDING_DP ~ . - TARGET_WINS  - TEAM_BASERUN_SB - TEAM_BASERUN_CS, data = train_prepared_df)
+```
+```{r}
+print(paste0("TEAM_BASERUN_SB - R-squared:",toString(round(summary(lm_team_bas_sb)$r.squared,4))))
+print(paste0("TEAM_BASERUN_CS - R-squared:",toString(round(summary(lm_team_bas_cs)$r.squared,4))))
+print(paste0("TEAM_FIELDING_DP - R-squared:",toString(round(summary(lm_team_fld_dp)$r.squared,4))))
+```
+We impute the missing values for **TEAM_BASERUN_CS** and rebuild the other 2 models
+```{r}
+train_prepared_df[is.na(train_prepared_df$TEAM_BASERUN_CS),]$TEAM_BASERUN_CS <- predict(lm_team_bas_cs,train_prepared_df[is.na(train_prepared_df$TEAM_BASERUN_CS),])
+```
+
+The R-squared values of the models for the third round are:
+```{r}
+lm_team_bas_sb <- lm(TEAM_BASERUN_SB ~ . - TARGET_WINS  - TEAM_FIELDING_DP, data = train_prepared_df)
+lm_team_fld_dp <- lm(TEAM_FIELDING_DP ~ . - TARGET_WINS  - TEAM_BASERUN_SB, data = train_prepared_df)
+```
+```{r}
+print(paste0("TEAM_BASERUN_SB - R-squared:",toString(round(summary(lm_team_bas_sb)$r.squared,4))))
+print(paste0("TEAM_FIELDING_DP - R-squared:",toString(round(summary(lm_team_fld_dp)$r.squared,4))))
+```
+After imputing **TEAM_BASERUN_SB**, we rebuild the model for **TEAM_FIELDING_DP** and finish our imputation
+
+```{r}
+train_prepared_df[is.na(train_prepared_df$TEAM_BASERUN_SB),]$TEAM_BASERUN_SB <- predict(lm_team_bas_sb,train_prepared_df[is.na(train_prepared_df$TEAM_BASERUN_SB),])
+```
+```{r}
+lm_team_fld_dp <- lm(TEAM_FIELDING_DP ~ . - TARGET_WINS, data = train_prepared_df)
+```
+
+The R-squared values of the last model:
+```{r}
+print(paste0("TEAM_FIELDING_DP - R-squared:",toString(round(summary(lm_team_fld_dp)$r.squared,4))))
+```
+```{r}
+train_prepared_df[is.na(train_prepared_df$TEAM_FIELDING_DP),]$TEAM_FIELDING_DP <- predict(lm_team_fld_dp,train_prepared_df[is.na(train_prepared_df$TEAM_FIELDING_DP),])
+```
+
+
+
+
+The numbers in the summary of our prepared dataset all look plausible, we are ready for our model development
+
+```{r}
+summary(train_prepared_df)
+```
+
+
+# BUILD MODELS
+
+
+```{r}
+lm_win <- lm(TARGET_WINS ~ .,data = train_prepared_df)
+```
+
+
+
+
+```{r}
+summary(lm_win)
+```
+
+
+
+```{r}
+plot(lm_win)
 ```
 
 
 
 ```{r}
 
+
 ```
-
-
-
-```{r}
-215
-```
-
-
 
 ```{r}
 
+
 ```
-
-
 
 ```{r}
 
+
 ```
-
-
 
 ```{r}
 
+
 ```
-
-
 
 ```{r}
 
+
 ```
-
-
 
 ```{r}
 
+
 ```
-
-
 
 ```{r}
 
+
 ```
-
-
 
 ```{r}
 
+
 ```
-
-
 
 ```{r}
 
+
 ```
-
-
 
 ```{r}
 
+
 ```
-
-
 
 ```{r}
 
+
 ```
-
-
 
 ```{r}
 
+
 ```
-
-
 
 ```{r}
 
+
 ```
-
-
 
 ```{r}
 
+
 ```
-
-
 
 ```{r}
 
+
 ```
-
-
 
 ```{r}
 
+
 ```
+
+```{r}
+
+
+```
+
+```{r}
+
+
+```
+
+```{r}
+
+
+```
+
+```{r}
+
+
+```
+
+```{r}
+
+
+```
+
+```{r}
+
+
+```
+
+```{r}
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
