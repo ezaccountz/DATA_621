@@ -195,18 +195,18 @@ We will keep the trained models and use them to impute missing values in the tes
 
 
 ```{r}
-lm_team_bat_so <- lm(TEAM_BATTING_SO ~ . - TARGET_WINS - TEAM_BASERUN_SB - TEAM_BASERUN_CS - TEAM_FIELDING_DP, data = train_prepared_df)
+lm_team_bat_so <- lm(TEAM_BATTING_SO ~ . - TEAM_BASERUN_SB - TEAM_BASERUN_CS - TEAM_FIELDING_DP, data = train_prepared_df[,2:ncol(train_prepared_df)])
 train_prepared_df[is.na(train_prepared_df$TEAM_BATTING_SO),]$TEAM_BATTING_SO <- predict(lm_team_bat_so,train_prepared_df[is.na(train_prepared_df$TEAM_BATTING_SO),])
 
-lm_team_bas_sb <- lm(TEAM_BASERUN_SB ~ . - TARGET_WINS  - TEAM_BASERUN_CS - TEAM_FIELDING_DP, data = train_prepared_df)
+lm_team_bas_sb <- lm(TEAM_BASERUN_SB ~ . - TEAM_BASERUN_CS - TEAM_FIELDING_DP, data = train_prepared_df[,2:ncol(train_prepared_df)])
 train_prepared_df[is.na(train_prepared_df$TEAM_BASERUN_SB),]$TEAM_BASERUN_SB <- predict(lm_team_bas_sb,train_prepared_df[is.na(train_prepared_df$TEAM_BASERUN_SB),])
 
 train_prepared_df[train_prepared_df$TEAM_BASERUN_SB<0,]$TEAM_BASERUN_SB <- 0
 
-lm_team_fld_dp <- lm(TEAM_FIELDING_DP ~ . - TARGET_WINS  - TEAM_BASERUN_CS, data = train_prepared_df)
+lm_team_fld_dp <- lm(TEAM_FIELDING_DP ~ . - TEAM_BASERUN_CS, data = train_prepared_df[,2:ncol(train_prepared_df)])
 train_prepared_df[is.na(train_prepared_df$TEAM_FIELDING_DP),]$TEAM_FIELDING_DP <- predict(lm_team_fld_dp,train_prepared_df[is.na(train_prepared_df$TEAM_FIELDING_DP),])
 
-lm_team_bas_cs <- lm(TEAM_BASERUN_CS ~ . - TARGET_WINS, data = train_prepared_df)
+lm_team_bas_cs <- lm(TEAM_BASERUN_CS ~ ., data = train_prepared_df[,2:ncol(train_prepared_df)])
 train_prepared_df[is.na(train_prepared_df$TEAM_BASERUN_CS),]$TEAM_BASERUN_CS <- predict(lm_team_bas_cs,train_prepared_df[is.na(train_prepared_df$TEAM_BASERUN_CS),])
 ```
 
@@ -299,52 +299,7 @@ The Residuals vs Leverage plots show no point outside of the Cook's distance. Th
 We conclude that all four models follow the assumptions of OLS regression and so they are valid.  
    
    
-## * **Adjusted R-squared**     
 
-The R-squared or Adjusted R-squared is used to measure how well a model fit in the train data. Since our models have different number of predictor variables, it is better to compare the Adjusted R-squared of the 4 models
-
-```{r}
-print(paste0("Full model:                                    ",toString(summary(lm_win_full)$adj.r.squared)))
-print(paste0("Exclude TEAM_BASERUN_CS:                       ",toString(summary(lm_win_eff_adj)$adj.r.squared)))
-print(paste0("EXclude TEAM_BASERUN_CS and TEAM_FIELDING_DP:  ",toString(summary(lm_win_eff_adj2)$adj.r.squared)))
-print(paste0("Exclude variables with missing values:         ",toString(summary(lm_win_exc_mis)$adj.r.squared)))
-
-```
-All models have Adjusted R-squared less than 0.31, we may have omitted variables that are not recorded in our data set.
-The second model performs the best fitting the train data set. However, it doesn't mean that it will do well in predicting unseen data. We will test the performance of the models using a test data set. 
-  
-
-## * **RMSD (Root Mean Square Deviation)**   
-The RMSD (Root Mean Square Deviation) is a measurement for the difference between a model's predicted values and the actual values. We will use the RMSD to compare the 4 models performance.  
-  
-First, let's look at the summary of our test data set:  
-```{r}
-summary(test_raw_df)
-```
-
-   
-First, let's transform and impute the variables in the test data set.   
-```{r}
-test_prepared_df <- test_raw_df
-test_prepared_df$TEAM_FIELDING_E_Transformed <- test_prepared_df$TEAM_FIELDING_E^(-1)
-
-test_prepared_df$TEAM_BATTING_1B <- test_prepared_df$TEAM_BATTING_H - test_prepared_df$TEAM_BATTING_2B - test_prepared_df$TEAM_BATTING_3B - test_prepared_df$TEAM_BATTING_HR
-test_prepared_df$TEAM_BATTING_H <- NULL
-  
-test_prepared_df$TEAM_BATTING_HBP <- NULL
-```
-
-```{r}
-# test_prepared_df[is.na(test_prepared_df$TEAM_BATTING_SO),]$TEAM_BATTING_SO <- predict(lm_team_bat_so,test_prepared_df[is.na(test_prepared_df$TEAM_BATTING_SO),])
-# 
-# test_prepared_df[is.na(test_prepared_df$test_prepared_df),]$TEAM_BASERUN_SB <- predict(lm_team_bas_sb,test_prepared_df[is.na(test_prepared_df$TEAM_BASERUN_SB),])
-# 
-# test_prepared_df[test_prepared_df$TEAM_BASERUN_SB<0,]$TEAM_BASERUN_SB <- 0
-# 
-# test_prepared_df[is.na(test_prepared_df$TEAM_FIELDING_DP),]$TEAM_FIELDING_DP <- predict(lm_team_fld_dp,test_prepared_df[is.na(test_prepared_df$TEAM_FIELDING_DP),])
-# 
-# test_prepared_df[is.na(test_prepared_df$TEAM_BASERUN_CS),]$TEAM_BASERUN_CS <- predict(lm_team_bas_cs,test_prepared_df[is.na(test_prepared_df$TEAM_BASERUN_CS),])
-```
 
 ## * **F-Statistic**  
 The F-statistic is used to measure the significance of one or more variables if they are added to a base model.  
@@ -366,18 +321,109 @@ Last, let's check if adding **TEAM_BASERUN_CS** will help
 anova(lm_win_eff_adj, lm_win_full)
 ```
 The variable **TEAM_BASERUN_CS** insignificant as we have checked before using the p-value of the coefficient.
+  
+From the F-Statistics, the optimal model is the model with the following predictors:
+
+* TEAM_BATTING_2B
+* TEAM_BATTING_3B
+* TEAM_BATTING_HR
+* TEAM_BATTING_BB
+* TEAM_BATTING_SO
+* TEAM_BASERUN_SB
+* TEAM_FIELDING_DP
+* TEAM_FIELDING_E_Transformed
+* TEAM_BATTING_1B
 
 
 
+## * **Adjusted R-squared and RMSD (Root Mean Square Deviation)**  
+
+The R-squared or Adjusted R-squared is used to measure how well a model fit in the train data. Since our models have different number of predictor variables, it is better to compare the Adjusted R-squared of the 4 models  
+
+The RMSD (Root Mean Square Deviation) is a measurement for the difference between a model's predicted values and the actual values.  
+  
+The Adjusted R-squared and RMSD for all 4 models are as following:
 
 
+```{r}
 
+data.frame(
+    model = c("Full model","Exclude TEAM_BASERUN_CS","EXclude TEAM_BASERUN_CS and TEAM_FIELDING_DP","Exclude variables with missing values"),     Adjusted_R_Squared = c(summary(lm_win_full)$adj.r.squared,summary(lm_win_eff_adj)$adj.r.squared,summary(lm_win_eff_adj2)$adj.r.squared,summary(lm_win_exc_mis)$adj.r.squared),
+    Root_Mean_Square_Deviation = c(sqrt(mean(lm_win_full$residuals^2)),sqrt(mean(lm_win_eff_adj$residuals^2)),sqrt(mean(lm_win_eff_adj2$residuals^2)),sqrt(mean(lm_win_exc_mis$residuals^2)))
+    )
+```
+The second model has the highest Adjusted_R_Squared value and an RMSD slightly higher than the smallest RMSD produced by the full model. We conclude that the optimal model is the same as we found from the F-Statistic tests.   
+   
+  
+## * **Test data set prediction**
+   
+Now, let's check if the models are producing plausible prediction values using the test data set.  
+   
+let's look at the summary of our test data set:  
+```{r}
+summary(test_raw_df)
+```
 
+   
+First, let's transform and impute the variables in the test data set.   
+```{r}
+test_prepared_df <- test_raw_df
+test_prepared_df$TEAM_FIELDING_E_Transformed <- test_prepared_df$TEAM_FIELDING_E^(-1)
 
+test_prepared_df$TEAM_BATTING_1B <- test_prepared_df$TEAM_BATTING_H - test_prepared_df$TEAM_BATTING_2B - test_prepared_df$TEAM_BATTING_3B - test_prepared_df$TEAM_BATTING_HR
+test_prepared_df$TEAM_BATTING_H <- NULL
+  
+test_prepared_df$TEAM_BATTING_HBP <- NULL
+test_prepared_df$TEAM_PITCHING_HR <- NULL
+test_prepared_df$TEAM_PITCHING_H <- NULL
+test_prepared_df$TEAM_PITCHING_BB <- NULL
+test_prepared_df$TEAM_PITCHING_SO <- NULL
+```
 
+```{r}
 
+test_prepared_df[is.na(test_prepared_df$TEAM_BATTING_SO),]$TEAM_BATTING_SO <- predict(lm_team_bat_so,test_prepared_df[is.na(test_prepared_df$TEAM_BATTING_SO),])
 
+test_prepared_df[is.na(test_prepared_df$TEAM_BASERUN_SB),]$TEAM_BASERUN_SB <- predict(lm_team_bas_sb,test_prepared_df[is.na(test_prepared_df$TEAM_BASERUN_SB),])
 
+test_prepared_df[test_prepared_df$TEAM_BASERUN_SB<0,]$TEAM_BASERUN_SB <- 0
 
+test_prepared_df[is.na(test_prepared_df$TEAM_FIELDING_DP),]$TEAM_FIELDING_DP <- predict(lm_team_fld_dp,test_prepared_df[is.na(test_prepared_df$TEAM_FIELDING_DP),])
 
+test_prepared_df[is.na(test_prepared_df$TEAM_BASERUN_CS),]$TEAM_BASERUN_CS <- predict(lm_team_bas_cs,test_prepared_df[is.na(test_prepared_df$TEAM_BASERUN_CS),])
+```
 
+The following is the summary of the prepared test data
+```{r}
+summary(test_prepared_df)
+```
+The follow plot shows the distribution of the actual Target_Win value from the train data set and the distributions of the predicted values from the 4 models
+```{r}
+m1_predict <- predict(lm_win_full, test_prepared_df)
+m2_predict <- predict(lm_win_eff_adj, test_prepared_df)
+m3_predict <- predict(lm_win_eff_adj2, test_prepared_df)
+m4_predict <- predict(lm_win_exc_mis, test_prepared_df)
+```
+```{r}
+dist_df <- data.frame(rbind(
+      cbind(train_prepared_df$TARGET_WINS,"train data set"),
+      cbind(m1_predict,"test data model 1"),
+      cbind(m2_predict,"test data model 2"),
+      cbind(m3_predict,"test data model 3"),
+      cbind(m4_predict,"test data model 4")
+      ),stringsAsFactors=FALSE)
+colnames(dist_df) <- c("value","data")
+dist_df$value <- as.numeric(dist_df$value)
+```
+```{r}
+library(ggplot2)
+
+ggplot(dist_df, aes(x=value, color=data)) +
+  geom_density()
+```
+The distribution of the predicted values for all 4 models are similar, with the same mean and variance. The means are also close to the mean of the Target_Win from our train data set. The variances are different because the test data has smaller sample size. All conclude that all 4 models produce plausible prediction values.
+   
+Based on above findings, the optimal model is 
+```{r}
+summary(lm_win_eff_adj)
+```
