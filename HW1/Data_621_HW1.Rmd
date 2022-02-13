@@ -1,6 +1,6 @@
 ---
 title: "DATA_621_HW1"
-author: "Euclid Zhang"
+author: "Chi Pong, Euclid Zhang, Jie Zou, Joseph Connolly, LeTicia Cancel"
 date: "1/30/2022"
 output:
   pdf_document: default
@@ -14,8 +14,10 @@ knitr::opts_chunk$set(echo = FALSE)
 
 ```{r include=FALSE}
 library("corrplot")
-library(MASS)
+library("MASS")
+#library("car")
 ```
+
 
 ```{r}
 train_raw_df <- read.csv("https://raw.githubusercontent.com/ezaccountz/DATA_621/main/HW1/moneyball-training-data.csv")
@@ -177,88 +179,49 @@ boxplot(train_prepared_df$TEAM_BATTING_1B,main="")
 
 
 The only problem now is the missing values in **TEAM_BATTING_SO**, **TEAM_BASERUN_SB**, **TEAM_BASERUN_CS** and **TEAM_FIELDING_DP**
-
-
-We will impute the missing values by using linear regression models. We will not go deep into evaluating these models in this project. The purpose here is to impute missing values have better explained variance than simply using the means or medians.
-
+  
+We will impute the missing values by using linear regression models. We will not go deep into evaluating these models in this project. The purpose here is to impute missing values have better explained variance than simply using the means or medians.  
+  
 In the imputation models, **TARGET_WINS** is not included as an independent variable since the values are not provided in the test data set. We will need to use the same models to impute missing values in the test data set.
+  
+We will perform separate imputations in the following order, based on the number of missing values:
+1. **TEAM_BATTING_SO**
+2. **TEAM_BASERUN_SB**
+3. **TEAM_FIELDING_DP**
+4. **TEAM_BASERUN_CS**
+
+Variables that are already imputed are included in the models after and un-imputed variables are not included.
+We will keep the trained models and use them to impute missing values in the test data set.
 
 
-
-Since missing values may appear in multiple variables at the same time, we will impute the variable one by one.
-First we build one model for each of the variables with missing values, with all 4 variables excluded from the regression.  
-
-Then we compare the R-squared values of all models and impute the variable with the highest R-squared value in its model.
-As one of the variable is imputed, we can rebuild the other models with imputed variable included in the regression.  
-
-We repeat this process until all variables are imputed  
-
-
-The R-squared values of the models for the first round are:
 ```{r}
 lm_team_bat_so <- lm(TEAM_BATTING_SO ~ . - TARGET_WINS - TEAM_BASERUN_SB - TEAM_BASERUN_CS - TEAM_FIELDING_DP, data = train_prepared_df)
-lm_team_bas_sb <- lm(TEAM_BASERUN_SB ~ . - TARGET_WINS - TEAM_BATTING_SO - TEAM_BASERUN_CS - TEAM_FIELDING_DP, data = train_prepared_df)
-lm_team_bas_cs <- lm(TEAM_BASERUN_CS ~ . - TARGET_WINS - TEAM_BATTING_SO - TEAM_BASERUN_SB - TEAM_FIELDING_DP, data = train_prepared_df)
-lm_team_fld_dp <- lm(TEAM_FIELDING_DP ~ . - TARGET_WINS - TEAM_BATTING_SO - TEAM_BASERUN_SB - TEAM_BASERUN_CS, data = train_prepared_df)
+train_prepared_df[is.na(train_prepared_df$TEAM_BATTING_SO),]$TEAM_BATTING_SO <- predict(lm_team_bat_so,train_prepared_df[is.na(train_prepared_df$TEAM_BATTING_SO),])
+
+lm_team_bas_sb <- lm(TEAM_BASERUN_SB ~ . - TARGET_WINS  - TEAM_BASERUN_CS - TEAM_FIELDING_DP, data = train_prepared_df)
+train_prepared_df[is.na(train_prepared_df$TEAM_BASERUN_SB),]$TEAM_BASERUN_SB <- predict(lm_team_bas_sb,train_prepared_df[is.na(train_prepared_df$TEAM_BASERUN_SB),])
+
+train_prepared_df[train_prepared_df$TEAM_BASERUN_SB<0,]$TEAM_BASERUN_SB <- 0
+
+lm_team_fld_dp <- lm(TEAM_FIELDING_DP ~ . - TARGET_WINS  - TEAM_BASERUN_CS, data = train_prepared_df)
+train_prepared_df[is.na(train_prepared_df$TEAM_FIELDING_DP),]$TEAM_FIELDING_DP <- predict(lm_team_fld_dp,train_prepared_df[is.na(train_prepared_df$TEAM_FIELDING_DP),])
+
+lm_team_bas_cs <- lm(TEAM_BASERUN_CS ~ . - TARGET_WINS, data = train_prepared_df)
+train_prepared_df[is.na(train_prepared_df$TEAM_BASERUN_CS),]$TEAM_BASERUN_CS <- predict(lm_team_bas_cs,train_prepared_df[is.na(train_prepared_df$TEAM_BASERUN_CS),])
 ```
+
+The R-squared values of the models are:
+
 ```{r}
 print(paste0("TEAM_BATTING_SO - R-squared:",toString(round(summary(lm_team_bat_so)$r.squared,4))))
 print(paste0("TEAM_BASERUN_SB - R-squared:",toString(round(summary(lm_team_bas_sb)$r.squared,4))))
 print(paste0("TEAM_BASERUN_CS - R-squared:",toString(round(summary(lm_team_bas_cs)$r.squared,4))))
 print(paste0("TEAM_FIELDING_DP - R-squared:",toString(round(summary(lm_team_fld_dp)$r.squared,4))))
 ```
-We impute the missing values for **TEAM_BATTING_SO** and rebuild the other 3 models
-
-```{r}
-train_prepared_df[is.na(train_prepared_df$TEAM_BATTING_SO),]$TEAM_BATTING_SO <- predict(lm_team_bat_so,train_prepared_df[is.na(train_prepared_df$TEAM_BATTING_SO),])
-```
-
-The R-squared values of the models for the second round are:
-```{r}
-lm_team_bas_sb <- lm(TEAM_BASERUN_SB ~ . - TARGET_WINS  - TEAM_BASERUN_CS - TEAM_FIELDING_DP, data = train_prepared_df)
-lm_team_bas_cs <- lm(TEAM_BASERUN_CS ~ . - TARGET_WINS  - TEAM_BASERUN_SB - TEAM_FIELDING_DP, data = train_prepared_df)
-lm_team_fld_dp <- lm(TEAM_FIELDING_DP ~ . - TARGET_WINS  - TEAM_BASERUN_SB - TEAM_BASERUN_CS, data = train_prepared_df)
-```
-```{r}
-print(paste0("TEAM_BASERUN_SB - R-squared:",toString(round(summary(lm_team_bas_sb)$r.squared,4))))
-print(paste0("TEAM_BASERUN_CS - R-squared:",toString(round(summary(lm_team_bas_cs)$r.squared,4))))
-print(paste0("TEAM_FIELDING_DP - R-squared:",toString(round(summary(lm_team_fld_dp)$r.squared,4))))
-```
-We impute the missing values for **TEAM_BASERUN_CS** and rebuild the other 2 models
-```{r}
-train_prepared_df[is.na(train_prepared_df$TEAM_BASERUN_CS),]$TEAM_BASERUN_CS <- predict(lm_team_bas_cs,train_prepared_df[is.na(train_prepared_df$TEAM_BASERUN_CS),])
-```
-
-The R-squared values of the models for the third round are:
-```{r}
-lm_team_bas_sb <- lm(TEAM_BASERUN_SB ~ . - TARGET_WINS  - TEAM_FIELDING_DP, data = train_prepared_df)
-lm_team_fld_dp <- lm(TEAM_FIELDING_DP ~ . - TARGET_WINS  - TEAM_BASERUN_SB, data = train_prepared_df)
-```
-```{r}
-print(paste0("TEAM_BASERUN_SB - R-squared:",toString(round(summary(lm_team_bas_sb)$r.squared,4))))
-print(paste0("TEAM_FIELDING_DP - R-squared:",toString(round(summary(lm_team_fld_dp)$r.squared,4))))
-```
-After imputing **TEAM_BASERUN_SB**, we rebuild the model for **TEAM_FIELDING_DP** and finish our imputation
-
-```{r}
-train_prepared_df[is.na(train_prepared_df$TEAM_BASERUN_SB),]$TEAM_BASERUN_SB <- predict(lm_team_bas_sb,train_prepared_df[is.na(train_prepared_df$TEAM_BASERUN_SB),])
-```
-```{r}
-lm_team_fld_dp <- lm(TEAM_FIELDING_DP ~ . - TARGET_WINS, data = train_prepared_df)
-```
-
-The R-squared values of the last model:
-```{r}
-print(paste0("TEAM_FIELDING_DP - R-squared:",toString(round(summary(lm_team_fld_dp)$r.squared,4))))
-```
-```{r}
-train_prepared_df[is.na(train_prepared_df$TEAM_FIELDING_DP),]$TEAM_FIELDING_DP <- predict(lm_team_fld_dp,train_prepared_df[is.na(train_prepared_df$TEAM_FIELDING_DP),])
-```
 
 
 
-
-The numbers in the summary of our prepared dataset all look plausible, we are ready for our model development
+The numbers in the summary of our prepared data set all look plausible, we are ready for our model development
 
 ```{r}
 summary(train_prepared_df)
@@ -268,143 +231,141 @@ summary(train_prepared_df)
 # BUILD MODELS
 
 
+## * **1. Full model:**
+**TEAM_BATTING_1B**, **TEAM_BATTING_2B**, **TEAM_BATTING_3B**, **TEAM_BATTING_HR**, **TEAM_BATTING_BB**, **TEAM_BATTING_SO**, **TEAM_BASERUN_SB**, **TEAM_BASERUN_CS**, **TEAM_FIELDING_DP**, **TEAM_FIELDING_E_Transformed**
 ```{r}
-lm_win <- lm(TARGET_WINS ~ .,data = train_prepared_df)
+lm_win_full <- lm(TARGET_WINS ~ .,data = train_prepared_df)
+```
+```{r}
+summary(lm_win_full)
+```
+In the full model, The sign of **TEAM_BASERUN_CS** and **TEAM_FIELDING_DP** do not match with the theoretical effects.   
+By looking at the below confidence intervals with 5% significance level, The positive sign for **TEAM_BASERUN_CS** may just happen by chance. The high p-value of **TEAM_BASERUN_CS** also indicates that the variable is not significant here. With the fact that more than 30% of the values of **TEAM_BASERUN_CS** are imputed. We suggest to drop this variable from our model.  
+For **TEAM_FIELDING_DP**, confidence interval is below 0 and the correlation between **TARGET_WINS** and **TEAM_FIELDING_DP** is -0.2. In the correlation matrix, it doesn't show any strong correlation with any other variables. One explanation is that double play happens when there is already a runner on a base. So a higher **TEAM_FIELDING_DP** means the team let the an opponent player stay on a base more frequently. A good team will get their opponents out before double play can happen. We may need to observe the behaviors of the baseball players directly to find out the true reason of the negative correlation, but in this analysis, We will compare the performance of the models with or without **TEAM_FIELDING_DP** using the test data set to determine whether we should keep this variable in our model.  
+
+```{r}
+confint(lm_win_full, level = 0.95)
 ```
 
-
-
-
+## * **2. Adjusted model 1:**
+exclude **TEAM_BASERUN_CS**
 ```{r}
-summary(lm_win)
+lm_win_eff_adj <- lm(TARGET_WINS ~ .-TEAM_BASERUN_CS,data = train_prepared_df)
 ```
-
-
-
 ```{r}
-plot(lm_win)
+summary(lm_win_eff_adj)
 ```
+The significance of **TEAM_BASERUN_SB** increases and the Adjusted R-squared increases. Dropping  **TEAM_BASERUN_CS** gives us a better result. We will also verify this in our test data set.
+  
 
-
-
+## * **3. Adjusted model 2:**  
+exclude **TEAM_BASERUN_CS** and **TEAM_FIELDING_DP**
 ```{r}
-
-
+lm_win_eff_adj2 <- lm(TARGET_WINS ~ .-TEAM_BASERUN_CS-TEAM_FIELDING_DP,data = train_prepared_df)
 ```
-
 ```{r}
-
-
+summary(lm_win_eff_adj2)
 ```
-
+The significance of **TEAM_BATTING_2B** and **TEAM_BATTING_SO** decreases and the Adjusted R-squared also decreases. It seems that it is better to keep **TEAM_FIELDING_DP** in our model.      
+  
+  
+## * **4. Adjusted model 3:**
+exclude all variables with imputed values (**TEAM_BATTING_SO**, **TEAM_BASERUN_SB**, **TEAM_BASERUN_CS** and **TEAM_FIELDING_DP**)
 ```{r}
-
-
+lm_win_exc_mis <- lm(TARGET_WINS ~ .-TEAM_BATTING_SO-TEAM_BASERUN_SB-TEAM_BASERUN_CS-TEAM_FIELDING_DP,data = train_prepared_df)
 ```
-
 ```{r}
-
-
+summary(lm_win_exc_mis)
 ```
+As expected, including less variables produce a model with lower R-squared value. The Adjusted R-squared is also lower in this case. However, this model is much simpler and all the variables have no missing values. We will compare the performance of this model to the other ones we have built using the test data set.  
 
-```{r}
+   
+# SELECT MODELS 
+   
 
+## * **Inference Plots**  
+```{r fig.height=10, fig.width=10}
+par(mfrow=c(4,4))
 
+plot(lm_win_full)
+plot(lm_win_eff_adj)
+plot(lm_win_eff_adj2)
+plot(lm_win_exc_mis)
 ```
+The plots for all four models all look the same.  
+The residual plots and standardized residual plots show that the residuals are independent and approximately constant with mean 0 within the cloud of data.  
+The Q-Q plots show that the residuals are approximately normal except the two tails but the problem is mild.  
+The Residuals vs Leverage plots show no point outside of the Cook's distance. There is no strong influence point.  
+We conclude that all four models follow the assumptions of OLS regression and so they are valid.  
+   
+   
+## * **Adjusted R-squared**     
+
+The R-squared or Adjusted R-squared is used to measure how well a model fit in the train data. Since our models have different number of predictor variables, it is better to compare the Adjusted R-squared of the 4 models
 
 ```{r}
-
-
-```
-
-```{r}
-
-
-```
-
-```{r}
-
-
-```
-
-```{r}
-
-
-```
-
-```{r}
-
-
-```
-
-```{r}
-
+print(paste0("Full model:                                    ",toString(summary(lm_win_full)$adj.r.squared)))
+print(paste0("Exclude TEAM_BASERUN_CS:                       ",toString(summary(lm_win_eff_adj)$adj.r.squared)))
+print(paste0("EXclude TEAM_BASERUN_CS and TEAM_FIELDING_DP:  ",toString(summary(lm_win_eff_adj2)$adj.r.squared)))
+print(paste0("Exclude variables with missing values:         ",toString(summary(lm_win_exc_mis)$adj.r.squared)))
 
 ```
+All models have Adjusted R-squared less than 0.31, we may have omitted variables that are not recorded in our data set.
+The second model performs the best fitting the train data set. However, it doesn't mean that it will do well in predicting unseen data. We will test the performance of the models using a test data set. 
+  
 
+## * **RMSD (Root Mean Square Deviation)**   
+The RMSD (Root Mean Square Deviation) is a measurement for the difference between a model's predicted values and the actual values. We will use the RMSD to compare the 4 models performance.  
+  
+First, let's look at the summary of our test data set:  
 ```{r}
-
-
+summary(test_raw_df)
 ```
 
+   
+First, let's transform and impute the variables in the test data set.   
 ```{r}
+test_prepared_df <- test_raw_df
+test_prepared_df$TEAM_FIELDING_E_Transformed <- test_prepared_df$TEAM_FIELDING_E^(-1)
 
-
-```
-
-```{r}
-
-
-```
-
-```{r}
-
-
-```
-
-```{r}
-
-
-```
-
-```{r}
-
-
-```
-
-```{r}
-
-
+test_prepared_df$TEAM_BATTING_1B <- test_prepared_df$TEAM_BATTING_H - test_prepared_df$TEAM_BATTING_2B - test_prepared_df$TEAM_BATTING_3B - test_prepared_df$TEAM_BATTING_HR
+test_prepared_df$TEAM_BATTING_H <- NULL
+  
+test_prepared_df$TEAM_BATTING_HBP <- NULL
 ```
 
 ```{r}
-
-
+# test_prepared_df[is.na(test_prepared_df$TEAM_BATTING_SO),]$TEAM_BATTING_SO <- predict(lm_team_bat_so,test_prepared_df[is.na(test_prepared_df$TEAM_BATTING_SO),])
+# 
+# test_prepared_df[is.na(test_prepared_df$test_prepared_df),]$TEAM_BASERUN_SB <- predict(lm_team_bas_sb,test_prepared_df[is.na(test_prepared_df$TEAM_BASERUN_SB),])
+# 
+# test_prepared_df[test_prepared_df$TEAM_BASERUN_SB<0,]$TEAM_BASERUN_SB <- 0
+# 
+# test_prepared_df[is.na(test_prepared_df$TEAM_FIELDING_DP),]$TEAM_FIELDING_DP <- predict(lm_team_fld_dp,test_prepared_df[is.na(test_prepared_df$TEAM_FIELDING_DP),])
+# 
+# test_prepared_df[is.na(test_prepared_df$TEAM_BASERUN_CS),]$TEAM_BASERUN_CS <- predict(lm_team_bas_cs,test_prepared_df[is.na(test_prepared_df$TEAM_BASERUN_CS),])
 ```
 
+## * **F-Statistic**  
+The F-statistic is used to measure the significance of one or more variables if they are added to a base model.  
+The base model is our model with **TEAM_BATTING_SO**, **TEAM_BASERUN_SB**, **TEAM_BASERUN_CS** and **TEAM_FIELDING_DP** excluded  
+We compare it with the model with  **TEAM_BATTING_SO** and  **TEAM_BASERUN_SB** added
 ```{r}
-
-
+anova(lm_win_exc_mis, lm_win_eff_adj2)
 ```
-
+The F-value with degree of freedom 2 is 31.068, indicating that adding **TEAM_BATTING_SO** and  **TEAM_BASERUN_SB** does make an improvement to the model.  
+   
+Next use our improved model as our new base model check if adding **TEAM_FIELDING_DP** will make another improvement.
 ```{r}
-
-
+anova(lm_win_eff_adj2, lm_win_eff_adj)
 ```
-
+The result shows that the effect of **TEAM_FIELDING_DP** is significant
+  
+Last, let's check if adding **TEAM_BASERUN_CS** will help
 ```{r}
-
-
+anova(lm_win_eff_adj, lm_win_full)
 ```
-
-```{r}
-
-
-```
-
-
-
-
+The variable **TEAM_BASERUN_CS** insignificant as we have checked before using the p-value of the coefficient.
 
 
 
