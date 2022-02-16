@@ -3,9 +3,9 @@ title: "DATA_621_HW1"
 author: "Chi Pong, Euclid Zhang, Jie Zou, Joseph Connolly, LeTicia Cancel"
 date: "1/30/2022"
 output:
-  pdf_document: default
   html_document:
     df_print: paged
+  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -18,7 +18,6 @@ library("MASS")
 #library("car")
 ```
 
-
 ```{r}
 train_raw_df <- read.csv("https://raw.githubusercontent.com/ezaccountz/DATA_621/main/HW1/moneyball-training-data.csv")
 test_raw_df <- read.csv("https://raw.githubusercontent.com/ezaccountz/DATA_621/main/HW1/moneyball-evaluation-data.csv")
@@ -27,13 +26,13 @@ train_raw_df$INDEX <- NULL
 test_raw_df$INDEX <- NULL
 ```
 
-
 # DATA EXPLORATION
 
 ```{r}
 summary(train_raw_df)
 ```
-## * **Outliers**
+
+## **Outliers**
 
 From the summaries The maximum values for TEAM_PITCHING_H, TEAM_PITCHING_BB, TEAM_PITCHING_SO and TEAM_FIELDING_E seem abnormally large. There may be outliers in the columns. We can confirm this finding by checking the distributions of the values:
 
@@ -43,91 +42,89 @@ for(i in c(1:16)) {
   boxplot(train_raw_df[,i],main=colnames(train_raw_df)[i])
 }
 ```
+
 From the boxplots, there are indeed values in TEAM_PITCHING_H, TEAM_PITCHING_BB, TEAM_PITCHING_SO and TEAM_FIELDING_E that are extremly off from the majority of the data. We would handle these outliers later with the other problems.
-  
 
-
-## * **Missing values**
+## **Missing values**
 
 From the summaries, we see that are are missing values for TEAM_BATTING_SO, TEAM_BASERUN_SB, TEAM_BASERUN_CS, EAM_BATTING_HBP, TEAM_PITCHING_SO, and TEAM_FIELDING_DP. Now we check the portion of missing data in each field:
 
 ```{r}
 sapply(train_raw_df,function(x)sum(is.na(x)))/nrow(train_raw_df)
 ```
+
 91.6% of the data in TEAM_BATTING_HBP are missing. Since the minimum of TEAM_BATTING_HBP is 29, it is not plausible that the missing values are all 0. We will drop this field from our analysis as there are too many missing values and there is no good way of imputing the values.
-  
+
 For TEAM_BATTING_SO, TEAM_BASERUN_SB, TEAM_BASERUN_CS, TEAM_PITCHING_SO, and TEAM_FIELDING_DP, we will do imputation and may be handled with other problems.
-  
 
+## **Correlations**
 
+Now let's look at the correlations between the variables
 
-
-## * **Correlations**
-
-Now let's look at the correlations between the variables  
 ```{r fig.height=10, fig.width=10}
 corrplot(cor(train_raw_df, use = "na.or.complete"), method = 'number', type = 'lower', diag = FALSE, tl.srt = 0.1)
 ```
-**The following variables are nearly perfectly correlated**  
 
-* TEAM_BATTING_H and TEAM_PITCHING_H
-* TEAM_BATTING_HR and TEAM_PITCHING_HR
-* TEAM_BATTING_BB and TEAM_PITCHING_BB
-* TEAM_BATTING_SO and TEAM_PITCHING_SO
+**The following variables are nearly perfectly correlated**
 
-  
+-   TEAM_BATTING_H and TEAM_PITCHING_H
+-   TEAM_BATTING_HR and TEAM_PITCHING_HR
+-   TEAM_BATTING_BB and TEAM_PITCHING_BB
+-   TEAM_BATTING_SO and TEAM_PITCHING_SO
 
 We take a more careful look at the correlation between the TARGET_WINS and other variables, and compare it with the theoretical effects
+
 ```{r paged.print=FALSE}
 corr_table <- data.frame(correlation_with_TARGET_WINS = round(cor(train_raw_df, use = "na.or.complete"),4)[-1,"TARGET_WINS"])
 corr_table$Theoretical_Effect <- c("Positive","Positive","Positive","Positive","Positive","Negative","Positive","Negative","Positive","Negative","Negative","Negative","Positive","Negative","Positive")
 corr_table
 ```
-**The following variables do not have correlation matching with the theoretical effect:  
 
-* TEAM_BATTING_3B
-* TEAM_PITCHING_H
-* TEAM_PITCHING_HR
-* TEAM_PITCHING_BB
-* TEAM_PITCHING_SO
-* TEAM_FIELDING_DP  
-  
-For TEAM_BATTING_3B and TEAM_FIELDING_DP, we would need to perform deeper analysis on this finding.  
+\*\*The following variables do not have correlation matching with the theoretical effect:
+
+-   TEAM_BATTING_3B
+-   TEAM_PITCHING_H
+-   TEAM_PITCHING_HR
+-   TEAM_PITCHING_BB
+-   TEAM_PITCHING_SO
+-   TEAM_FIELDING_DP
+
+For TEAM_BATTING_3B and TEAM_FIELDING_DP, we would need to perform deeper analysis on this finding.\
 For TEAM_PITCHING_H, TEAM_PITCHING_HR, TEAM_PITCHING_BB, TEAM_PITCHING_SO, we may consider dropping the variables since they are amlost perfectly correlated with one other variable. Also, TEAM_PITCHING_H, TEAM_PITCHING_BB and TEAM_PITCHING_SO have outlier problem as found above.
 
-## * **normalities**
+## **Normalities**
 
-We check the normalities of the variables to determine if transformation is needed.  
+We check the normalities of the variables to determine if transformation is needed.
+
 ```{r fig.height=10, fig.width=10}
 par(mfrow=c(4,4))
 for(i in c(1:16)) {
   plot(density(train_raw_df[,i],na.rm=TRUE),main=colnames(train_raw_df)[i])
 }
 ```
-TEAM_PITCHING_H, TEAM_PITCHING_BB, TEAM_PITCHING_SO and TEAM_FIELDING_E are largely right skewed because of the outliers. We will check the distributions later again when the outliers are handled.  
-TEAM_BATTING_HR, TEAM_BATTING_SO, TEAM_PITCHING_HR are bimodal that may need to be transformed.  
+
+TEAM_PITCHING_H, TEAM_PITCHING_BB, TEAM_PITCHING_SO and TEAM_FIELDING_E are largely right skewed because of the outliers. We will check the distributions later again when the outliers are handled.\
+TEAM_BATTING_HR, TEAM_BATTING_SO, TEAM_PITCHING_HR are bimodal that may need to be transformed.\
 There are some variables such as TEAM_BASERUN_SB that are slightly right skewed. We may keep them as it for easier interpretation of the result.
-
-
 
 # DATA PREPARATION
 
-## * **Dropping variables**
+## **Dropping variables**
 
 **TEAM_BATTING_HBP** is dropped for the following reason(s)
 
-* 91.6% of the data are missing
+-   91.6% of the data are missing
 
-**TEAM_PITCHING_HR** is dropped for the following reason(s) 
+**TEAM_PITCHING_HR** is dropped for the following reason(s)
 
-* nearly perfectly correlated with one other variable
-* do not have correlation matching with the theoretical effect
-  
-**TEAM_PITCHING_H*,*TEAM_PITCHING_BB*,*TEAM_PITCHING_SO** are dropped for the following reason(s) 
+-   nearly perfectly correlated with one other variable
+-   do not have correlation matching with the theoretical effect
 
-* nearly perfectly correlated with one other variable
-* do not have correlation matching with the theoretical effect
-* large outliers
+**TEAM_PITCHING_H*,*TEAM_PITCHING_BB*,*TEAM_PITCHING_SO** are dropped for the following reason(s)
+
+-   nearly perfectly correlated with one other variable
+-   do not have correlation matching with the theoretical effect
+-   large outliers
 
 ```{r}
 train_prepared_df <- train_raw_df
@@ -138,28 +135,30 @@ train_prepared_df$TEAM_PITCHING_BB <- NULL
 train_prepared_df$TEAM_PITCHING_SO <- NULL
 ```
 
-## * **Transforming variables**
+## **Transforming variables**
 
 Since **TEAM_FIELDING_E** is extremely right skewed, we will transform the variable using Box-Cox transformation
- 
-The optimal lamba from the following result plot is near -1, so we will transform the variable using the power of -1  
+
+The optimal lamba from the following result plot is near -1, so we will transform the variable using the power of -1
 
 ```{r fig.height=4, fig.width=5}
 boxcox(lm(train_prepared_df$TEAM_FIELDING_E ~ 1))
 ```
+
 ```{r}
 train_prepared_df$TEAM_FIELDING_E_Transformed <- train_prepared_df$TEAM_FIELDING_E^(-1)
 train_prepared_df$TEAM_FIELDING_E <- NULL
 ```
-  
+
 The following density plot and box plot show that the distribution is closer to normal and there are no extreme ourliers.
+
 ```{r fig.height=3, fig.width=6}
 par(mfrow=c(1,2))
 plot(density(train_prepared_df$TEAM_FIELDING_E_Transformed),main="",xlab="")
 boxplot(train_prepared_df$TEAM_FIELDING_E_Transformed,main="")
 ```
 
-Since **TEAM_BATTING_H** also counts the number of **TEAM_BATTING_2B**, **TEAM_BATTING_3B** and **TEAM_BATTING_3B**.  
+Since **TEAM_BATTING_H** also counts the number of **TEAM_BATTING_2B**, **TEAM_BATTING_3B** and **TEAM_BATTING_3B**.\
 Instead of using **TEAM_BATTING_H**, we will create a new variable **TEAM_BATTING_1B** by subtracting **TEAM_BATTING_2B**, **TEAM_BATTING_3B** and **TEAM_BATTING_3B** from **TEAM_BATTING_H**
 
 ```{r}
@@ -175,24 +174,17 @@ plot(density(train_prepared_df$TEAM_BATTING_1B),main="",xlab="")
 boxplot(train_prepared_df$TEAM_BATTING_1B,main="")
 ```
 
-## * **Imputation for Missing Values**
-
+## **Imputation for Missing Values**
 
 The only problem now is the missing values in **TEAM_BATTING_SO**, **TEAM_BASERUN_SB**, **TEAM_BASERUN_CS** and **TEAM_FIELDING_DP**
-  
-We will impute the missing values by using linear regression models. We will not go deep into evaluating these models in this project. The purpose here is to impute missing values have better explained variance than simply using the means or medians.  
-  
+
+We will impute the missing values by using linear regression models. We will not go deep into evaluating these models in this project. The purpose here is to impute missing values have better explained variance than simply using the means or medians.
+
 In the imputation models, **TARGET_WINS** is not included as an independent variable since the values are not provided in the test data set. We will need to use the same models to impute missing values in the test data set.
-  
-We will perform separate imputations in the following order, based on the number of missing values:
-1. **TEAM_BATTING_SO**
-2. **TEAM_BASERUN_SB**
-3. **TEAM_FIELDING_DP**
-4. **TEAM_BASERUN_CS**
 
-Variables that are already imputed are included in the models after and un-imputed variables are not included.
-We will keep the trained models and use them to impute missing values in the test data set.
+We will perform separate imputations in the following order, based on the number of missing values: 1. **TEAM_BATTING_SO** 2. **TEAM_BASERUN_SB** 3. **TEAM_FIELDING_DP** 4. **TEAM_BASERUN_CS**
 
+Variables that are already imputed are included in the models after and un-imputed variables are not included. We will keep the trained models and use them to impute missing values in the test data set.
 
 ```{r}
 lm_team_bat_so <- lm(TEAM_BATTING_SO ~ . - TEAM_BASERUN_SB - TEAM_BASERUN_CS - TEAM_FIELDING_DP, data = train_prepared_df[,2:ncol(train_prepared_df)])
@@ -219,71 +211,80 @@ print(paste0("TEAM_BASERUN_CS - R-squared:",toString(round(summary(lm_team_bas_c
 print(paste0("TEAM_FIELDING_DP - R-squared:",toString(round(summary(lm_team_fld_dp)$r.squared,4))))
 ```
 
-
-
 The numbers in the summary of our prepared data set all look plausible, we are ready for our model development
 
 ```{r}
 summary(train_prepared_df)
 ```
 
-
 # BUILD MODELS
 
+## **1. Full model:**
 
-## * **1. Full model:**
-**TEAM_BATTING_1B**, **TEAM_BATTING_2B**, **TEAM_BATTING_3B**, **TEAM_BATTING_HR**, **TEAM_BATTING_BB**, **TEAM_BATTING_SO**, **TEAM_BASERUN_SB**, **TEAM_BASERUN_CS**, **TEAM_FIELDING_DP**, **TEAM_FIELDING_E_Transformed**
+**TEAM_BATTING_1B**, **TEAM_BATTING_2B**, **TEAM_BATTING_3B**, **TEAM_BATTING_HR**, **TEAM_BATTING_BB**, **TEAM_BATTING_SO**, **TEAM_BASERUN_SB**, **TEAM_BASERUN_CS**, **TEAM_FIELDING_DP**, **TEAM_FIELDING_E\_Transformed**
+
 ```{r}
 lm_win_full <- lm(TARGET_WINS ~ .,data = train_prepared_df)
 ```
+
 ```{r}
 summary(lm_win_full)
 ```
-In the full model, The sign of **TEAM_BASERUN_CS** and **TEAM_FIELDING_DP** do not match with the theoretical effects.   
-By looking at the below confidence intervals with 5% significance level, The positive sign for **TEAM_BASERUN_CS** may just happen by chance. The high p-value of **TEAM_BASERUN_CS** also indicates that the variable is not significant here. With the fact that more than 30% of the values of **TEAM_BASERUN_CS** are imputed. We suggest to drop this variable from our model.  
-For **TEAM_FIELDING_DP**, confidence interval is below 0 and the correlation between **TARGET_WINS** and **TEAM_FIELDING_DP** is -0.2. In the correlation matrix, it doesn't show any strong correlation with any other variables. One explanation is that double play happens when there is already a runner on a base. So a higher **TEAM_FIELDING_DP** means the team let the an opponent player stay on a base more frequently. A good team will get their opponents out before double play can happen. We may need to observe the behaviors of the baseball players directly to find out the true reason of the negative correlation, but in this analysis, We will compare the performance of the models with or without **TEAM_FIELDING_DP** using the test data set to determine whether we should keep this variable in our model.  
+
+In the full model, The sign of **TEAM_BASERUN_CS** and **TEAM_FIELDING_DP** do not match with the theoretical effects.\
+By looking at the below confidence intervals with 5% significance level, The positive sign for **TEAM_BASERUN_CS** may just happen by chance. The high p-value of **TEAM_BASERUN_CS** also indicates that the variable is not significant here. With the fact that more than 30% of the values of **TEAM_BASERUN_CS** are imputed. We suggest to drop this variable from our model.\
+For **TEAM_FIELDING_DP**, confidence interval is below 0 and the correlation between **TARGET_WINS** and **TEAM_FIELDING_DP** is -0.2. In the correlation matrix, it doesn't show any strong correlation with any other variables. One explanation is that double play happens when there is already a runner on a base. So a higher **TEAM_FIELDING_DP** means the team let the an opponent player stay on a base more frequently. A good team will get their opponents out before double play can happen. We may need to observe the behaviors of the baseball players directly to find out the true reason of the negative correlation. But, in this analysis, we will compare the performance of the models with or without **TEAM_FIELDING_DP** using the test data set to determine whether we should keep this variable in our model.
 
 ```{r}
 confint(lm_win_full, level = 0.95)
 ```
 
-## * **2. Adjusted model 1:**
+## **2. Adjusted model 1:**
+
 exclude **TEAM_BASERUN_CS**
+
 ```{r}
 lm_win_eff_adj <- lm(TARGET_WINS ~ .-TEAM_BASERUN_CS,data = train_prepared_df)
 ```
+
 ```{r}
 summary(lm_win_eff_adj)
 ```
-The significance of **TEAM_BASERUN_SB** increases and the Adjusted R-squared increases. Dropping  **TEAM_BASERUN_CS** gives us a better result. We will also verify this in our test data set.
-  
 
-## * **3. Adjusted model 2:**  
+The significance of **TEAM_BASERUN_SB** increases and the Adjusted R-squared increases. Dropping **TEAM_BASERUN_CS** gives us a better result. We will also verify this in our test data set.
+
+## **3. Adjusted model 2:**
+
 exclude **TEAM_BASERUN_CS** and **TEAM_FIELDING_DP**
+
 ```{r}
 lm_win_eff_adj2 <- lm(TARGET_WINS ~ .-TEAM_BASERUN_CS-TEAM_FIELDING_DP,data = train_prepared_df)
 ```
+
 ```{r}
 summary(lm_win_eff_adj2)
 ```
-The significance of **TEAM_BATTING_2B** and **TEAM_BATTING_SO** decreases and the Adjusted R-squared also decreases. It seems that it is better to keep **TEAM_FIELDING_DP** in our model.      
-  
-  
-## * **4. Adjusted model 3:**
+
+The significance of **TEAM_BATTING_2B** and **TEAM_BATTING_SO** decreases and the Adjusted R-squared also decreases. It seems that it is better to keep **TEAM_FIELDING_DP** in our model.
+
+## **4. Adjusted model 3:**
+
 exclude all variables with imputed values (**TEAM_BATTING_SO**, **TEAM_BASERUN_SB**, **TEAM_BASERUN_CS** and **TEAM_FIELDING_DP**)
+
 ```{r}
 lm_win_exc_mis <- lm(TARGET_WINS ~ .-TEAM_BATTING_SO-TEAM_BASERUN_SB-TEAM_BASERUN_CS-TEAM_FIELDING_DP,data = train_prepared_df)
 ```
+
 ```{r}
 summary(lm_win_exc_mis)
 ```
-As expected, including less variables produce a model with lower R-squared value. The Adjusted R-squared is also lower in this case. However, this model is much simpler and all the variables have no missing values. We will compare the performance of this model to the other ones we have built using the test data set.  
 
-   
-# SELECT MODELS 
-   
+As expected, including less variables produce a model with lower R-squared value. The Adjusted R-squared is also lower in this case. However, this model is much simpler and all the variables have no missing values. We will compare the performance of this model to the other ones we have built using the test data set.
 
-## * **Inference Plots**  
+# SELECT MODELS
+
+## **Inference Plots**
+
 ```{r fig.height=10, fig.width=10}
 par(mfrow=c(4,4))
 
@@ -292,58 +293,60 @@ plot(lm_win_eff_adj)
 plot(lm_win_eff_adj2)
 plot(lm_win_exc_mis)
 ```
-The plots for all four models all look the same.  
-The residual plots and standardized residual plots show that the residuals are independent and approximately constant with mean 0 within the cloud of data.  
-The Q-Q plots show that the residuals are approximately normal except the two tails but the problem is mild.  
-The Residuals vs Leverage plots show no point outside of the Cook's distance. There is no strong influence point.  
-We conclude that all four models follow the assumptions of OLS regression and so they are valid.  
-   
-   
 
+The plots for all four models all look the same.\
+The residual plots and standardized residual plots show that the residuals are independent and approximately constant with mean 0 within the cloud of data.\
+The Q-Q plots show that the residuals are approximately normal except the two tails but the problem is mild.\
+The Residuals vs Leverage plots show no point outside of the Cook's distance. There is no strong influence point.\
+We conclude that all four models follow the assumptions of OLS regression and so they are valid.
 
-## * **F-Statistic**  
-The F-statistic is used to measure the significance of one or more variables if they are added to a base model.  
-The base model is our model with **TEAM_BATTING_SO**, **TEAM_BASERUN_SB**, **TEAM_BASERUN_CS** and **TEAM_FIELDING_DP** excluded  
-We compare it with the model with  **TEAM_BATTING_SO** and  **TEAM_BASERUN_SB** added
+## **F-Statistic**
+
+The F-statistic is used to measure the significance of one or more variables if they are added to a base model.\
+The base model is our model with **TEAM_BATTING_SO**, **TEAM_BASERUN_SB**, **TEAM_BASERUN_CS** and **TEAM_FIELDING_DP** excluded\
+We compare it with the model with **TEAM_BATTING_SO** and **TEAM_BASERUN_SB** added
+
 ```{r}
 anova(lm_win_exc_mis, lm_win_eff_adj2)
 ```
-The F-value with degree of freedom 2 is 31.068, indicating that adding **TEAM_BATTING_SO** and  **TEAM_BASERUN_SB** does make an improvement to the model.  
-   
+
+The F-value with degree of freedom 2 is 31.068, indicating that adding **TEAM_BATTING_SO** and **TEAM_BASERUN_SB** does make an improvement to the model.
+
 Next use our improved model as our new base model check if adding **TEAM_FIELDING_DP** will make another improvement.
+
 ```{r}
 anova(lm_win_eff_adj2, lm_win_eff_adj)
 ```
+
 The result shows that the effect of **TEAM_FIELDING_DP** is significant
-  
+
 Last, let's check if adding **TEAM_BASERUN_CS** will help
+
 ```{r}
 anova(lm_win_eff_adj, lm_win_full)
 ```
+
 The variable **TEAM_BASERUN_CS** insignificant as we have checked before using the p-value of the coefficient.
-  
+
 From the F-Statistics, the optimal model is the model with the following predictors:
 
-* TEAM_BATTING_2B
-* TEAM_BATTING_3B
-* TEAM_BATTING_HR
-* TEAM_BATTING_BB
-* TEAM_BATTING_SO
-* TEAM_BASERUN_SB
-* TEAM_FIELDING_DP
-* TEAM_FIELDING_E_Transformed
-* TEAM_BATTING_1B
+-   TEAM_BATTING_2B
+-   TEAM_BATTING_3B
+-   TEAM_BATTING_HR
+-   TEAM_BATTING_BB
+-   TEAM_BATTING_SO
+-   TEAM_BASERUN_SB
+-   TEAM_FIELDING_DP
+-   TEAM_FIELDING_E\_Transformed
+-   TEAM_BATTING_1B
 
+## **Adjusted R-squared and RMSD (Root Mean Square Deviation)**
 
+The R-squared or Adjusted R-squared is used to measure how well a model fit in the train data. Since our models have different number of predictor variables, it is better to compare the Adjusted R-squared of the 4 models
 
-## * **Adjusted R-squared and RMSD (Root Mean Square Deviation)**  
+The RMSD (Root Mean Square Deviation) is a measurement for the difference between a model's predicted values and the actual values.
 
-The R-squared or Adjusted R-squared is used to measure how well a model fit in the train data. Since our models have different number of predictor variables, it is better to compare the Adjusted R-squared of the 4 models  
-
-The RMSD (Root Mean Square Deviation) is a measurement for the difference between a model's predicted values and the actual values.  
-  
 The Adjusted R-squared and RMSD for all 4 models are as following:
-
 
 ```{r}
 
@@ -352,20 +355,21 @@ data.frame(
     Root_Mean_Square_Deviation = c(sqrt(mean(lm_win_full$residuals^2)),sqrt(mean(lm_win_eff_adj$residuals^2)),sqrt(mean(lm_win_eff_adj2$residuals^2)),sqrt(mean(lm_win_exc_mis$residuals^2)))
     )
 ```
-The second model has the highest Adjusted_R_Squared value and an RMSD slightly higher than the smallest RMSD produced by the full model. We conclude that the optimal model is the same as we found from the F-Statistic tests.   
-   
-  
-## * **Test data set prediction**
-   
-Now, let's check if the models are producing plausible prediction values using the test data set.  
-   
-let's look at the summary of our test data set:  
+
+The second model has the highest Adjusted_R\_Squared value and an RMSD slightly higher than the smallest RMSD produced by the full model. We conclude that the optimal model is the same as we found from the F-Statistic tests.
+
+## **Test data set prediction**
+
+Now, let's check if the models are producing plausible prediction values using the test data set.
+
+let's look at the summary of our test data set:
+
 ```{r}
 summary(test_raw_df)
 ```
 
-   
-First, let's transform and impute the variables in the test data set.   
+First, let's transform and impute the variables in the test data set.
+
 ```{r}
 test_prepared_df <- test_raw_df
 test_prepared_df$TEAM_FIELDING_E_Transformed <- test_prepared_df$TEAM_FIELDING_E^(-1)
@@ -394,16 +398,20 @@ test_prepared_df[is.na(test_prepared_df$TEAM_BASERUN_CS),]$TEAM_BASERUN_CS <- pr
 ```
 
 The following is the summary of the prepared test data
+
 ```{r}
 summary(test_prepared_df)
 ```
+
 The follow plot shows the distribution of the actual Target_Win value from the train data set and the distributions of the predicted values from the 4 models
+
 ```{r}
 m1_predict <- predict(lm_win_full, test_prepared_df)
 m2_predict <- predict(lm_win_eff_adj, test_prepared_df)
 m3_predict <- predict(lm_win_eff_adj2, test_prepared_df)
 m4_predict <- predict(lm_win_exc_mis, test_prepared_df)
 ```
+
 ```{r}
 dist_df <- data.frame(rbind(
       cbind(train_prepared_df$TARGET_WINS,"train data set"),
@@ -415,15 +423,18 @@ dist_df <- data.frame(rbind(
 colnames(dist_df) <- c("value","data")
 dist_df$value <- as.numeric(dist_df$value)
 ```
+
 ```{r}
 library(ggplot2)
 
 ggplot(dist_df, aes(x=value, color=data)) +
   geom_density()
 ```
+
 The distribution of the predicted values for all 4 models are similar, with the same mean and variance. The means are also close to the mean of the Target_Win from our train data set. The variances are different because the test data has smaller sample size. All conclude that all 4 models produce plausible prediction values.
-   
-Based on above findings, the optimal model is 
+
+Based on above findings, the optimal model is
+
 ```{r}
 summary(lm_win_eff_adj)
 ```
