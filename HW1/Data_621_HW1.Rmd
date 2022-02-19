@@ -186,6 +186,14 @@ We will perform separate imputations in the following order, based on the number
 
 Variables that are already imputed are included in the models after and un-imputed variables are not included. We will keep the trained models and use them to impute missing values in the test data set.
 
+Before imputations:
+
+```{r}
+missing_df <- data.frame(train_prepared_df$TEAM_BATTING_SO,train_prepared_df$TEAM_BASERUN_SB,train_prepared_df$TEAM_BASERUN_CS, train_prepared_df$TEAM_FIELDING_DP)
+
+(colMeans(is.na(missing_df)))*100
+```
+
 ```{r}
 lm_team_bat_so <- lm(TEAM_BATTING_SO ~ . - TEAM_BASERUN_SB - TEAM_BASERUN_CS - TEAM_FIELDING_DP, data = train_prepared_df[,2:ncol(train_prepared_df)])
 train_prepared_df[is.na(train_prepared_df$TEAM_BATTING_SO),]$TEAM_BATTING_SO <- predict(lm_team_bat_so,train_prepared_df[is.na(train_prepared_df$TEAM_BATTING_SO),])
@@ -200,6 +208,13 @@ train_prepared_df[is.na(train_prepared_df$TEAM_FIELDING_DP),]$TEAM_FIELDING_DP <
 
 lm_team_bas_cs <- lm(TEAM_BASERUN_CS ~ ., data = train_prepared_df[,2:ncol(train_prepared_df)])
 train_prepared_df[is.na(train_prepared_df$TEAM_BASERUN_CS),]$TEAM_BASERUN_CS <- predict(lm_team_bas_cs,train_prepared_df[is.na(train_prepared_df$TEAM_BASERUN_CS),])
+```
+
+After imputations:
+
+```{r}
+# imputed_df <- data.frame(lm_team_bat_so, lm_team_bas_sb, lm_team_fld_dp, lm_team_bas_cs)
+# (colMeans(is.na(imputed_df)))*100
 ```
 
 The R-squared values of the models are:
@@ -294,8 +309,14 @@ plot(lm_win_eff_adj2)
 plot(lm_win_exc_mis)
 ```
 
-The plots for all four models all look the same.\
-The residual plots and standardized residual plots show that the residuals are independent and approximately constant with mean 0 within the cloud of data.\
+The plots for all four models all look the same.
+
+### Constant Variance
+
+\
+The residual plots and standardized residual plots show that the residuals are independent and approximately constant with mean 0 within the cloud of data. Basically, we see in all 4 residuals vs fitted plots (Column 1) that there is approximately symmetrical variation around 0, i.e. homoscedasticity. Nor did we detect any non-linear patterns.
+
+\
 The Q-Q plots show that the residuals are approximately normal except the two tails but the problem is mild.\
 The Residuals vs Leverage plots show no point outside of the Cook's distance. There is no strong influence point.\
 We conclude that all four models follow the assumptions of OLS regression and so they are valid.
