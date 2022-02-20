@@ -215,7 +215,13 @@ After imputations:
 ```{r}
 # imputed_df <- data.frame(lm_team_bat_so, lm_team_bas_sb, lm_team_fld_dp, lm_team_bas_cs)
 # (colMeans(is.na(imputed_df)))*100
+missing_df <- data.frame(train_prepared_df$TEAM_BATTING_SO,train_prepared_df$TEAM_BASERUN_SB,train_prepared_df$TEAM_BASERUN_CS, train_prepared_df$TEAM_FIELDING_DP)
+
+(colMeans(is.na(missing_df)))*100
+
 ```
+
+As you can all see, the 4 variables, *TEAM_BATTING_SO, TEAM_BASERUN_SB, TEAM_BASERUN_CS, TEAM_FIELDING_DP*, all are having 0 missing values. Meaning they are no longer presented with missing values.
 
 The R-squared values of the models are:
 

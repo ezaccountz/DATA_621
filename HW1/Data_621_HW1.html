@@ -321,6 +321,11 @@ Instead of using <strong>TEAM_BATTING_H</strong>, we will create a new variable 
 ##  train_prepared_df.TEAM_BASERUN_CS train_prepared_df.TEAM_FIELDING_DP 
 ##                          33.919156                          12.565905</code></pre>
 <p>After imputations:</p>
+<pre><code>##  train_prepared_df.TEAM_BATTING_SO  train_prepared_df.TEAM_BASERUN_SB 
+##                                  0                                  0 
+##  train_prepared_df.TEAM_BASERUN_CS train_prepared_df.TEAM_FIELDING_DP 
+##                                  0                                  0</code></pre>
+<p>As you can all see, the 4 variables, <em>TEAM_BATTING_SO, TEAM_BASERUN_SB, TEAM_BASERUN_CS, TEAM_FIELDING_DP</em>, all are having 0 missing values. Meaning they are no longer presented with missing values.</p>
 <p>The R-squared values of the models are:</p>
 <pre><code>## [1] &quot;TEAM_BATTING_SO - R-squared:0.7045&quot;</code></pre>
 <pre><code>## [1] &quot;TEAM_BASERUN_SB - R-squared:0.1571&quot;</code></pre>
