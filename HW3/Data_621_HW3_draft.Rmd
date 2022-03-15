@@ -32,6 +32,8 @@ test_df <- read.csv("https://raw.githubusercontent.com/ezaccountz/DATA_621/main/
 ```
 
 
+
+
 # DATA EXPLORATION
 
 ```{r}
@@ -66,7 +68,7 @@ for(preditor in predictors) {
 par(mfrow=c(3,4))
 
 predictors <- colnames(train_df)
-predictors <- predictors[!predictors %in% c("target")]
+#predictors <- predictors[!predictors %in% c("target")]
 
 for(preditor in predictors) {
   plot(density(train_df[,preditor],na.rm=TRUE),main=preditor)
@@ -153,23 +155,80 @@ plot_zn+plot_indus+plot_nox+plot_rm+plot_age+plot_dis+plot_rad+plot_tax+
 ```
 
 The distributions for rm with target = 0 and target = 1 are approximately normal with the same variance. Hence we don't need to transform the variable
-The distributions for lstat and medv are skewed, we will add a log-transformed variable for each of them
-The distributions for indus, nox, age, dis, tax, ptratio look significantly different for the target values. We will not perform transformation for them unless transformations have to be done to meet the model assumptions
+The distributions for lstat and medv are skewed for both target = 0 and target = 1, we will add a log-transformed variable for each of them
+
+The distributions for indus, nox, age, dis, tax, ptratio look significantly different for the target values. Let perform a anova tests on the single preditor models to see if adding a log transformed or a quadratic transformed variable will improve the performance.
+
+
+```{r message=FALSE, warning=FALSE}
+predictors <- c("indus", "nox", "age", "dis", "tax", "ptratio")
+
+n <- length(predictors)
+
+model_compare <- data.frame(
+    model_1 = paste0("target~",predictors),
+    model_2 = paste0("target~",predictors,"+I(",predictors,"^2)"),
+    Diff_DF = rep(0,n),
+    Diff_Deviance = rep(0.0000,n),
+    Pr_Gt_Chi = rep(0.0000,n)
+)
+
+for (i in (1:n)) {
+    test_model_1 <- glm(target~train_df[,predictors[i]],family = binomial, train_df)
+    test_model_2 <- glm(target~train_df[,predictors[i]]+I(train_df[,predictors[i]]^2),family = binomial, train_df)
+    anova_test <- anova(test_model_1,test_model_2,test="Chi")
+    model_compare[i,3] <- anova_test$Df[2]
+    model_compare[i,4] <- round(anova_test$Deviance[2],2)
+    model_compare[i,5] <- round(anova_test$`Pr(>Chi)`[2],6)
+}
+
+model_compare
+```
+```{r message=FALSE, warning=FALSE}
+predictors <- c("indus", "nox", "age", "dis", "tax", "ptratio")
+
+n <- length(predictors)
+
+model_compare <- data.frame(
+    model_1 = paste0("target~",predictors),
+    model_2 = paste0("target~",predictors,"+I(log(",predictors,"))"),
+    Diff_DF = rep(0,n),
+    Diff_Deviance = rep(0.0000,n),
+    Pr_Gt_Chi = rep(0.0000,n)
+)
+
+for (i in (1:n)) {
+    test_model_1 <- glm(target~train_df[,predictors[i]],family = binomial, train_df)
+    test_model_2 <- glm(target~train_df[,predictors[i]]+I(log(train_df[,predictors[i]])),family = binomial, train_df)
+    anova_test <- anova(test_model_1,test_model_2,test="Chi")
+    model_compare[i,3] <- anova_test$Df[2]
+    model_compare[i,4] <- round(anova_test$Deviance[2],2)
+    model_compare[i,5] <- round(anova_test$`Pr(>Chi)`[2],6)
+}
+
+model_compare
+```
+
+For indus, the improvement is bigger by adding the squared term. For ptratio, since the distribution is left-skewed, it may be better to add the squared term. For other variables, no transformation is needed.
+
+
 
 
 ```{r}
 train_df$log_lstat <- log(train_df$lstat)
 train_df$log_medv <- log(train_df$medv)
+train_df$indus_squared <- train_df$indus^2
+train_df$ptratio_squared <- train_df$ptratio^2
 ```
 
 
 ```{r warning=FALSE}
 predictors <- colnames(train_df)
-predictors <- predictors[!predictors %in% c("target","chas","zn_y","log_lstat","log_medv")]
+predictors <- predictors[!predictors %in% c("target","chas","zn_y","log_lstat","log_medv","indus_squared","ptratio_squared")]
 
 interaction_test <- data.frame(matrix(ncol = 3, nrow = 0))
-colnames(interaction_test) <- c("Preditor","Interaction","p-value")
-class(interaction_test$`p-value`) = "Numeric"
+colnames(interaction_test) <- c("Preditor","Interaction","Pr_Gt_Chi")
+class(interaction_test$Pr_Gt_Chi) = "Numeric"
 
 for (predictor in predictors) {
   interaction_test[nrow(interaction_test) + 1,] <- 
@@ -206,58 +265,41 @@ summary(model_AIC)
 
 
 ```{r warning=FALSE}
-drop1(glm(target ~ .-rad_chas-zn-log_medv-rm-log_lstat-lstat-indus, family=binomial, train_df), test="Chi")
+drop1(glm(target ~ .-rad_chas-zn-lstat-log_lstat, family=binomial, train_df), test="Chi")
 ```
 ```{r warning=FALSE}
-model_p <- glm(target ~ .-rad_chas-zn-log_medv-rm-log_lstat-lstat-indus, family=binomial, train_df)
+model_chi <- glm(target ~ .-rad_chas-zn-lstat-log_lstat, family=binomial, train_df)
 ```
 
 ```{r}
-summary(model_p)
-```
-```{r}
-model_p <- glm(target ~ .-rad_chas-zn-log_medv-rm-log_lstat-lstat-indus-chas-tax_chas, family=binomial, train_df)
+summary(model_chi)
 ```
 
-```{r}
-summary(model_p)
-```
 
 ```{r warning=FALSE}
-model_AIC_2 <- step(glm(target~.-zn_y,family = binomial, train_df), trace=0)
+model_p <- glm(target~.-rad_chas-tax_chas-chas-zn-log_medv-rm,family = binomial, train_df)
+summary(model_p)
 ```
 
-```{r}
-summary(model_AIC_2)
-```
-
-```{r}
-model_p_2 <- glm(target ~ zn + chas + nox + age + dis + rad + tax + 
-    ptratio + lstat + medv + log_lstat + tax_chas-tax_chas-chas-log_lstat-lstat, family=binomial, train_df)
-```
-
-```{r}
-summary(model_p_2)
-```
 
 ```{r}
 model_compare <- data.frame(
-    model = c("full_model","model_AIC","model_p","model_AIC_2","model_p_2"),
-    Deviance = rep(0.0000,5),
-    AIC = rep(0.0000,5),
-    Accurarcy = rep(0.0000,5),
-    Sensitivity = rep(0.0000,5),
-    Specificity = rep(0.0000,5),
-    Precision = rep(0.0000,5),
-    F1 = rep(0.0000,5),
-    AUC = rep(0.0000,5),
-    Nagelkerke_R_squared = rep(0.0000,5)
+    model = c("full_model","model_AIC","model_chi","model_p"),
+    Deviance = rep(0.0000,4),
+    AIC = rep(0.0000,4),
+    Accurarcy = rep(0.0000,4),
+    Sensitivity = rep(0.0000,4),
+    Specificity = rep(0.0000,4),
+    Precision = rep(0.0000,4),
+    F1 = rep(0.0000,4),
+    AUC = rep(0.0000,4),
+    Nagelkerke_R_squared = rep(0.0000,4)
 )
 ```
 ```{r message=FALSE, warning=FALSE}
-models <- list(full_model, model_AIC, model_p, model_AIC_2, model_p_2)
+models <- list(full_model, model_AIC, model_chi, model_p)
 
-for (i in c(1:5)) {
+for (i in c(1:4)) {
   predicted_class <- ifelse(models[[i]]$fitted.values>0.5,1,0)
   confusion_matrix <- confusionMatrix(as.factor(predicted_class),
                                       as.factor(train_df$target),positive = "1")
@@ -287,13 +329,13 @@ model_compare
 
 
 ```{r fig.height=10, fig.width=10, message=FALSE, warning=FALSE}
-marginalModelPlots(model_AIC,~nox+age+dis+rad+tax+ptratio+medv,layout =c(3,3))
+marginalModelPlots(model_chi,~nox+age+dis+rad+tax+ptratio+medv,layout =c(3,3))
 ```
 
 
 ```{r}
 
-residual_df <- mutate(train_df, residuals=residuals(model_AIC,type="deviance"), linpred=predict(model_AIC,type = "link"))
+residual_df <- mutate(train_df, residuals=residuals(model_AIC,type="deviance"), linpred=predict(model_chi,type = "link"))
 
 gdf <- group_by(residual_df, cut(linpred, breaks=unique(quantile(linpred,(1:100)/101))))
 
@@ -301,17 +343,14 @@ diagdf <- summarise(gdf, residuals=mean(residuals), linpred=mean(linpred))
 
 plot(residuals ~ linpred, diagdf, xlab="linear predictor",xlim=c(-20,20))
 ```
-```{r}
-model_AIC
-```
 
 
 
-```{r}
+```{r fig.height=3, fig.width=3}
 
 predictors <- c("nox","age","dis","rad","tax","ptratio","medv")
 
-residual_df <- mutate(train_df, residuals=residuals(model_AIC,type="deviance"))
+residual_df <- mutate(train_df, residuals=residuals(model_chi,type="deviance"))
 gg_plots <- list()
 
 for (i in c(1:length(predictors))) {
@@ -321,16 +360,21 @@ for (i in c(1:length(predictors))) {
 }
 ```
 
-
-
 ```{r}
-halfnorm(hatvalues(model_AIC))
-```
-```{r}
-train_df[c(210,235),]
+qqnorm(residuals(model_chi))
 ```
 
 
+```{r}
+halfnorm(hatvalues(model_chi))
+```
+```{r}
+train_df[c(14,37),]
+```
+
+```{r}
+predict(model_chi,train_df[c(14,37),], type="link")
+```
 
 
 
@@ -338,6 +382,9 @@ train_df[c(210,235),]
 ```{r}
 test_df$zn_y <- 0
 test_df$zn_y[test_df$zn>0] <- 1
+
+test_df$indus_squared <- test_df$indus^2
+test_df$ptratio_squared <- test_df$ptratio^2
 
 test_df$log_lstat <- log(test_df$lstat)
 test_df$log_medv <- log(test_df$medv)
@@ -348,7 +395,7 @@ test_df$rad_chas <- test_df$rad * test_df$chas
 
 
 ```{r}
-test_df$predicted_class <- ifelse(predict(model_AIC,test_df, type = "response") >0.5,1,0)
+test_df$predicted_class <- ifelse(predict(model_chi,test_df, type = "response") >0.5,1,0)
 ```
 
 
