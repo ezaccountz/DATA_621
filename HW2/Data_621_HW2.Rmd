@@ -28,7 +28,7 @@ Use the table() function to get the raw confusion matrix for this scored dataset
 ```{r}
 table(classification_df$scored.class, classification_df$class)
 ```
-The tows represent the predicted class  
+The rows represent the predicted class  
 The columns represent the actual class
 
 
@@ -139,18 +139,21 @@ cal_f1(classification_df,"class","scored.class")
 Before we move on, let’s consider a question that was asked: What are the bounds on the F1 
 score? Show that the F1 score will always be between 0 and 1. (Hint: If 0<a<1 and 0<b<1 then ab<a.)
 
-$$
-\begin{aligned}
-F1 &= \frac{2*Precision*Sensitivity}{Precision+Sensitivity} \\
-&= 2*\frac{\frac{TP}{TP+FP}*\frac{TP}{TP+FN}}{\frac{TP}{TP+FP}+\frac{TP}{TP+FN}} \\
-&= 2*\frac{\frac{TP^2}{(TP+FP)(TP+FN)}}{\frac{TP^2+TP*FN+TP^2+TP*FP}{(TP+FP)(TP+FN)}} \\
-&= 2*\frac{TP^2}{TP^2+TP*FN+TP^2+TP*FP} \\
-&= 2*\frac{TP}{2TP+FN+FP} \\
-&= \frac{2TP}{2TP+FN+FP} \\
-\end{aligned}
-$$
-Since $0<=TP<=1$, $0<=FN<=1$ and $0<=FP<=1$, $0 <= 2TP <= 2TP+FN+FP$.
-So $F1 = \frac{2TP}{2TP+FN+FP}$ is always between 0 and 1
+*Ans*: let $\alpha=Precision, \; \beta=Sensitivity, \; \gamma=F1Score=\frac{2\times\alpha\times\beta}{\alpha+\beta}$
+
+$$\because 0<\alpha<1 \; and \; 0<\beta<1 \\$$
+$$ \therefore \frac{2\times\alpha\times\beta}{\alpha+\beta}>0 \\$$
+
+and,
+
+$$if \; 0<\alpha<1 \; and \; 0<\beta<1 \; then \; \alpha\beta<\alpha \\$$
+$$\frac{2\times\alpha\times\beta}{\alpha+\beta}=\frac{\alpha\beta}{\alpha+\beta}+\frac{\alpha\beta}{\alpha+\beta} < \frac{\alpha}{\alpha+\beta}+\frac{\beta}{\alpha+\beta}=\frac{\alpha+\beta}{\alpha+\beta}=1 \\$$
+$$0<\gamma<1$$
+
+
+
+We proved that F1 Score is always between 0 and 1.
+
 
 
 # 10.ROC curve
