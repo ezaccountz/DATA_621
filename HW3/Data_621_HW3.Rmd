@@ -315,7 +315,7 @@ summary(model_AIC)
 ```
 
 
-## * **2. Backward Elimination with Chi-square test:**
+## * **3. Backward Elimination with Chi-square test:**
 
 Starting with our full model, perform backward elimination with Chi-square test.
 
@@ -377,7 +377,7 @@ summary(model_chi_0.001)
 ```
 
 
-## * **3. Backward Elimination based on the t-values of the coefficients:**
+## * **4. Backward Elimination based on the t-values of the coefficients:**
 
 Starting with our full model, perform backward elimination based on the t-values of the coefficients.
 
@@ -494,6 +494,15 @@ Since this is **logistic regression with binary data**, Deviance shouldn't be us
 The result shows that model_chi_0.1 has the lowest AIC and best performance in predicting the using the training data.
 The models produced based the t-values of the coefficients are not doing so well. It is reasonable since some of the predictors have high correlation with each other.
 
+The following is the confusion matrix for our best model model_chi_0.1:
+
+```{r}
+predicted_class <- ifelse(model_chi_0.1$fitted.values>0.5,1,0)
+confusion_matrix <- confusionMatrix(as.factor(predicted_class),
+                                      as.factor(train_df$target),positive = "1")
+confusion_matrix
+```
+
 
 ## * **Cross Validation (5 fold)**
 
@@ -549,7 +558,7 @@ for(i in 1:5){
 }
 
 model_compare$model <- unlist(model_names)
-model_compare$Accurarcy_average <- apply(model_compare[,c(2:6)],1,mean)
+model_compare$Accuracy_average <- apply(model_compare[,c(2:6)],1,mean)
 model_compare$AIC_average <- apply(model_compare[,c(8:12)],1,mean)
 
 ```
@@ -572,8 +581,7 @@ The following table shows the accuracy of predictions with the test data and the
 model_compare
 ```
 model_AIC and model_chi_0.1 have the best performance. 
-Since model_chi_0.1 is a simpler model with 15 coefficients, we select 
-model_chi_0.1 as our best model
+Since model_chi_0.1 is a simpler model with 15 coefficients, we select model_chi_0.1 to be our best model as it is a more *parsimonious* model
 
 ```{r}
 length(model_chi_0.1$coefficients) - 1  # -1 for the intercept
@@ -640,7 +648,7 @@ for (i in c(1:length(predictors))) {
 ```
 
 The residuals in each plots are centered at 0, mostly independent and with roughly the same variance, except a few outliers. 
-We conclude that our model does not have notable violation against its validity. 
+We conclude that our model does not have notable violation against its validity. The residuals for *nox* and *dis* seems to be heteroscedastic. Given this is a logistic regression with binary data, this phenomena is acceptable.
 
 **Q-Q Plot and half normal plot**
 
