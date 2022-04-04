@@ -62,6 +62,8 @@ train_df$JOB <- gsub("z_", "", train_df$JOB)
 train_df$CAR_TYPE <- gsub("z_", "", train_df$CAR_TYPE)
 train_df$URBANICITY <- ifelse(train_df$URBANICITY == "Highly Urban/ Urban", "Urban","Rural")
 
+train_df$JOB[train_df$JOB == ""] <- NA
+
 train_df[c("TARGET_FLAG","PARENT1","MSTATUS", "SEX", "EDUCATION", "JOB","CAR_TYPE",
            "RED_CAR", "URBANICITY", "CAR_USE","REVOKED")] <-             
                 lapply(train_df[c("TARGET_FLAG","PARENT1","MSTATUS", "SEX", 
@@ -175,7 +177,7 @@ train_df$TARGET_FLAG <- NULL
 train_df$TARGET_AMT <- NULL
 
 #save the imputation models to impute the test data set later
-mickey <- parlmice(train_df, maxit = 5, m = 1, printFlag = FALSE, seed = 2022)
+mickey <- parlmice(train_df, maxit = 5, m = 1, printFlag = FALSE, seed = 2022, cluster.seed = 2022)
 
 #save the imputation result
 train_df <- complete(mickey,1)
@@ -193,7 +195,6 @@ TARGET_AMT <- NULL
 # train_df <- read.csv("train_df.csv", stringsAsFactors = TRUE)
 # train_df$TARGET_FLAG <- as.factor(train_df$TARGET_FLAG)
 ```
-
 
 
 The plots on the top row below show the distributions of the values from the original data
@@ -593,6 +594,8 @@ test_df$JOB <- gsub("z_", "", test_df$JOB)
 test_df$CAR_TYPE <- gsub("z_", "", test_df$CAR_TYPE)
 test_df$URBANICITY <- ifelse(test_df$URBANICITY == "Highly Urban/ Urban", "Urban","Rural")
 
+test_df$JOB[test_df$JOB == ""] <- NA
+
 test_df[c("TARGET_FLAG","PARENT1","MSTATUS", "SEX", "EDUCATION", "JOB","CAR_TYPE",
            "RED_CAR", "URBANICITY", "CAR_USE","REVOKED")] <-             
                 lapply(test_df[c("TARGET_FLAG","PARENT1","MSTATUS", "SEX", 
@@ -673,7 +676,7 @@ dist_df[,1] <- dist_df[,1]/sum(dist_df[,1])
 dist_df[,2] <- dist_df[,2]/sum(dist_df[,2])
 dist_df
 ```
-The model produces similar result for both the training and testing data. Around 61% of the cases are classified as no crash and 39% of the 
+The model produces similar result for both the training and testing data. Around 60% of the cases are classified as no crash and 40% of the 
 cases are classified as having a crash. Our logistic model has similar performance for predicting unseen results.
 
 ```{r}
