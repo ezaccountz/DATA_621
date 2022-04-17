@@ -1,0 +1,415 @@
+---
+title: "DATA_621_HW5"
+author: "Chi Pong, Euclid Zhang, Jie Zou, Joseph Connolly, LeTicia Cancel"
+date: "4/10/2022"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r include=FALSE}
+library("corrplot")
+library("MASS")
+library("ggplot2")
+library("patchwork")
+library("faraway")
+library("car")
+library("pROC")
+library("caret")
+library("dplyr")
+library("reshape2")
+
+library("mice")
+library("NADIA")
+library("arm")
+library("pROC")
+
+library("pscl")
+
+set.seed(2022)
+```
+
+
+```{r}
+train_df <- read.csv("wine-training-data.csv",fileEncoding="UTF-8-BOM")
+test_df <- read.csv("wine-evaluation-data.csv",fileEncoding="UTF-8-BOM")
+
+train_df$INDEX <- NULL
+test_df$IN <- NULL
+```
+
+
+# DATA EXPLORATION
+
+## Data Summary
+
+```{r}
+summary(train_df)
+```
+
+
+## Distribution plots
+
+
+```{r message=FALSE, warning=FALSE}
+ggplot(train_df, aes(x=TARGET)) + geom_histogram(na.rm =TRUE)
+```
+
+
+
+
+
+```{r fig.height=10, fig.width=10, warning=FALSE}
+CASES <- as.factor(train_df$TARGET)
+
+plot_FixedAcidity <- ggplot(train_df, aes(x=FixedAcidity, color=CASES)) + geom_density(na.rm =TRUE, bw=1)
+plot_VolatileAcidity <- ggplot(train_df, aes(x=VolatileAcidity, color=CASES)) + geom_density(na.rm =TRUE, bw=0.3)
+plot_CitricAcid <- ggplot(train_df, aes(x=CitricAcid, color=CASES)) + geom_density(na.rm =TRUE, bw=0.3)
+plot_ResidualSugar <- ggplot(train_df, aes(x=ResidualSugar, color=CASES)) + geom_density(na.rm =TRUE, bw=5)
+plot_Chlorides <- ggplot(train_df, aes(x=Chlorides, color=CASES)) + geom_density(na.rm =TRUE, bw=0.2)
+plot_FreeSulfurDioxide <- ggplot(train_df, aes(x=FreeSulfurDioxide, color=CASES)) + geom_density(na.rm =TRUE, bw=20)
+plot_TotalSulfurDioxide <- ggplot(train_df, aes(x=TotalSulfurDioxide, color=CASES)) + geom_density(na.rm =TRUE, bw=20)
+plot_Density <- ggplot(train_df, aes(x=Density, color=CASES)) + geom_density(na.rm =TRUE)
+plot_pH <- ggplot(train_df, aes(x=pH, color=CASES)) + geom_density(na.rm =TRUE, bw=0.3)
+plot_Sulphates <- ggplot(train_df, aes(x=Sulphates, color=CASES)) + geom_density(na.rm =TRUE, bw=0.3)
+plot_Alcohol <- ggplot(train_df, aes(x=Alcohol, color=CASES)) + geom_density(na.rm =TRUE, bw=0.8)
+plots_LabelAppeal <- ggplot(train_df, aes(x=LabelAppeal, color=CASES)) + geom_density(na.rm =TRUE, bw=0.2)
+plots_AcidIndex <- ggplot(train_df, aes(x=AcidIndex, color=CASES)) + geom_density(na.rm =TRUE, bw=0.5)
+plots_STARS <- ggplot(train_df, aes(x=STARS, color=CASES)) + geom_density(na.rm =TRUE, bw=0.2)
+
+plot_FixedAcidity+plot_VolatileAcidity+plot_CitricAcid+plot_ResidualSugar+plot_Chlorides+
+  plot_FreeSulfurDioxide+plot_TotalSulfurDioxide+plot_Density+plot_pH+plot_Sulphates+
+  plot_Alcohol+plots_LabelAppeal+plots_AcidIndex+plots_STARS+
+  plot_layout(ncol = 3, guides = "collect")
+
+```
+
+
+```{r}
+ResidualSugar_Y <- !is.na(train_df$ResidualSugar)
+Chlorides_Y <- !is.na(train_df$Chlorides)
+FreeSulfurDioxide_Y <- !is.na(train_df$FreeSulfurDioxide)
+TotalSulfurDioxide_Y <- !is.na(train_df$TotalSulfurDioxide)
+pH_Y <- !is.na(train_df$pH)
+Sulphates_Y <- !is.na(train_df$Sulphates)
+Alcohol_Y <- !is.na(train_df$Alcohol)
+STARS_Y <- !is.na(train_df$STARS)
+```
+
+```{r fig.height=3, fig.width=5, warning=FALSE}
+ggplot(train_df, aes(x=TARGET, color=STARS_Y)) + geom_density(na.rm =TRUE, bw=0.3)
+```
+
+
+## Correlations
+
+```{r fig.height=10, fig.width=10}
+corrplot::corrplot(cor(train_df, use = "na.or.complete"), 
+                   method = 'number', type = 'lower', diag = FALSE, tl.srt = 0.1)
+```
+
+
+# DATA PREPARATION
+
+## Data Imputation
+
+```{r}
+#temporary exclude TARGET, LabelAppeal, and STARS in our imputation
+TARGET <- train_df$TARGET
+LabelAppeal <- train_df$LabelAppeal
+STARS <- train_df$STARS
+
+train_df$TARGET <- NULL
+train_df$LabelAppeal <- NULL
+train_df$STARS <- NULL
+
+#save the imputation models to impute the test data set later
+mickey <- parlmice(train_df, maxit = 5, m = 1, printFlag = FALSE, seed = 2022, cluster.seed = 2022)
+
+#save the imputation result
+train_df <- complete(mickey,1)
+
+#Add TARGET, LabelAppeal, and STARS back to our dataframe
+train_df$TARGET <- TARGET
+train_df$LabelAppeal <- LabelAppeal
+train_df$STARS <- STARS
+
+TARGET <- NULL
+LabelAppeal <- NULL
+STARS <- NULL
+
+#write.csv(train_df,"train_df.csv", row.names = FALSE)
+```
+
+```{r}
+#train_df <- read.csv("train_df.csv", stringsAsFactors = TRUE)
+```
+
+
+
+
+
+```{r fig.height=3, fig.width=10, warning=FALSE}
+plot_ResidualSugar <- ggplot(train_df[ResidualSugar_Y,], aes(x=ResidualSugar, color=TARGET)) + geom_density(na.rm =TRUE)
+plot_Chlorides <- ggplot(train_df[Chlorides_Y,], aes(x=Chlorides, color=TARGET)) + geom_density(na.rm =TRUE)
+plot_FreeSulfurDioxide <- ggplot(train_df[FreeSulfurDioxide_Y,], aes(x=FreeSulfurDioxide, color=TARGET)) + geom_density(na.rm =TRUE)
+plot_TotalSulfurDioxide <- ggplot(train_df[TotalSulfurDioxide_Y,], aes(x=TotalSulfurDioxide, color=TARGET)) + geom_density(na.rm =TRUE)
+plot_pH <- ggplot(train_df[pH_Y,], aes(x=pH, color=TARGET)) + geom_density(na.rm =TRUE)
+plot_Sulphates <- ggplot(train_df[Sulphates_Y,], aes(x=Sulphates, color=TARGET)) + geom_density(na.rm =TRUE)
+plot_Alcohol <- ggplot(train_df[Alcohol_Y,], aes(x=Alcohol, color=TARGET)) + geom_density(na.rm =TRUE)
+
+plot_ResidualSugar2 <- ggplot(train_df[!ResidualSugar_Y,], aes(x=ResidualSugar, color=TARGET)) + geom_density(na.rm =TRUE)
+plot_Chlorides2 <- ggplot(train_df[!Chlorides_Y,], aes(x=Chlorides, color=TARGET)) + geom_density(na.rm =TRUE)
+plot_FreeSulfurDioxide2 <- ggplot(train_df[!FreeSulfurDioxide_Y,], aes(x=FreeSulfurDioxide, color=TARGET)) + geom_density(na.rm =TRUE)
+plot_TotalSulfurDioxide2 <- ggplot(train_df[!TotalSulfurDioxide_Y,], aes(x=TotalSulfurDioxide, color=TARGET)) + geom_density(na.rm =TRUE)
+plot_pH2 <- ggplot(train_df[!pH_Y,], aes(x=pH, color=TARGET)) + geom_density(na.rm =TRUE)
+plot_Sulphates2 <- ggplot(train_df[!Sulphates_Y,], aes(x=Sulphates, color=TARGET)) + geom_density(na.rm =TRUE)
+plot_Alcohol2 <- ggplot(train_df[!Alcohol_Y,], aes(x=Alcohol, color=TARGET)) + geom_density(na.rm =TRUE)
+
+plot_ResidualSugar+plot_Chlorides+plot_FreeSulfurDioxide+plot_TotalSulfurDioxide+
+  plot_pH+plot_Sulphates+plot_Alcohol+
+  plot_ResidualSugar2+plot_Chlorides2+plot_FreeSulfurDioxide2+plot_TotalSulfurDioxide2+
+  plot_pH2+plot_Sulphates2+plot_Alcohol2+
+  plot_layout(ncol = 7, guides = "collect")
+```
+
+## Data Transformation
+
+```{r}
+train_df$STARS[!STARS_Y] <- 0
+train_df$STARS <- as.factor(train_df$STARS)
+train_df$LabelAppeal <- as.factor(train_df$LabelAppeal)
+```
+
+
+
+# BUILD MODELS
+
+## Poisson models
+
+```{r}
+poisson_full <- glm(TARGET ~ ., data=train_df, family=poisson)
+summary(poisson_full)
+```
+
+
+### Backward Elimination by AIC
+
+```{r}
+poisson_AIC <- step(poisson_full,trace=0)
+summary(poisson_AIC)
+```
+
+### Backward Elimination by BIC
+
+```{r}
+poisson_BIC <- step(poisson_full,trace=0, k=log(nrow(train_df)))
+summary(poisson_BIC)
+```
+
+
+## Negative Binomial models
+
+```{r}
+nb_full <- glm(TARGET ~ ., data=train_df,negative.binomial(1))
+summary(nb_full)
+```
+
+### Backward Elimination by AIC
+
+
+```{r}
+nb_AIC <- step(nb_full,trace=0)
+summary(nb_AIC)
+```
+
+### Backward Elimination by BIC
+
+```{r}
+nb_BIC <- step(nb_full,trace=0, k=log(nrow(train_df)))
+summary(nb_BIC)
+```
+
+
+
+
+
+
+## Multiple Linear Regression Models
+
+
+```{r}
+lm_full <- lm(TARGET ~ ., data=train_df)
+summary(lm_full)
+```
+
+### Backward Elimination by AIC
+
+```{r}
+lm_AIC <- step(lm_full,trace=0)
+summary(lm_AIC)
+```
+
+### Backward Elimination by BIC
+
+```{r}
+lm_BIC <- step(lm_full,trace=0, k=log(nrow(train_df)))
+summary(lm_BIC)
+```
+
+
+## Model Coefficients Comparison
+
+```{r}
+poisson_full_coef <- data.frame(poisson_full=poisson_full$coefficients)
+poisson_AIC_coef <- data.frame(poisson_AIC=round(poisson_AIC$coefficients,4))
+poisson_BIC_coef <- data.frame(poisson_BIC=round(poisson_BIC$coefficients,4))
+nb_AIC_coef <- data.frame(nb_AIC=round(nb_AIC$coefficients,4))
+nb_BIC_coef <- data.frame(nb_BIC=round(nb_BIC$coefficients,4))
+lm_AIC_coef <- data.frame(lm_AIC=round(lm_AIC$coefficients,4))
+lm_BIC_coef <- data.frame(lm_BIC=round(lm_BIC$coefficients,4))
+```
+
+
+```{r paged.print=FALSE}
+summary_table <- merge(x=poisson_full_coef, y=poisson_AIC_coef, by="row.names", all=TRUE)
+summary_table <- merge(x=summary_table, y=poisson_BIC_coef, by.x="Row.names", by.y = "row.names", all=TRUE)
+summary_table <- merge(x=summary_table, y=nb_AIC_coef, by.x="Row.names", by.y="row.names", all=TRUE)
+summary_table <- merge(x=summary_table, y=nb_BIC_coef, by.x="Row.names", by.y="row.names", all=TRUE)
+summary_table <- merge(x=summary_table, y=lm_AIC_coef, by.x="Row.names", by.y="row.names", all=TRUE)
+summary_table <- merge(x=summary_table, y=lm_BIC_coef, by.x="Row.names", by.y="row.names", all=TRUE)
+summary_table$poisson_full <- NULL
+summary_table
+```
+
+
+## Hurdle Model
+
+```{r}
+mod_hurdle <- hurdle(TARGET~.-FixedAcidity-Density-CitricAcid-ResidualSugar-Chlorides, data=train_df)
+summary(mod_hurdle)
+```
+
+## Zero Inflation Model
+
+```{r}
+mod_zeroinfl <- zeroinfl(TARGET~.-FixedAcidity-Density-CitricAcid-ResidualSugar-Chlorides, data=train_df)
+summary(mod_zeroinfl)
+```
+
+# SELECT MODELS
+
+## Root Mean Squared Error
+
+```{r}
+data.frame(poisson_AIC=sqrt(mean(residuals(poisson_AIC, type="response")^2)),
+           poisson_BIC=sqrt(mean(residuals(poisson_BIC, type="response")^2)),
+           nb_AIC=sqrt(mean(residuals(nb_AIC, type="response")^2)),
+           nb_BIC=sqrt(mean(residuals(nb_BIC, type="response")^2)),
+           lm_AIC=sqrt(mean(residuals(lm_AIC, type="response")^2)),
+           lm_BIC=sqrt(mean(residuals(lm_BIC, type="response")^2)),
+           mod_hurdle=sqrt(mean(residuals(mod_hurdle, type="response")^2)),
+           mod_zeroinfl=sqrt(mean(residuals(mod_zeroinfl, type="response")^2)))
+```
+
+## Distribution of Predicted Values (train data)
+
+```{r}
+train_actual <- train_df$TARGET
+poisson_AIC_predict <- predict(poisson_AIC,type="response")
+poisson_BIC_predict <- predict(poisson_BIC,type="response")
+nb_AIC_predict <- predict(nb_AIC,type="response")
+nb_BIC_predict <- predict(nb_BIC,type="response")
+lm_AIC_predict <- predict(lm_AIC,type="response")
+lm_BIC_predict <- predict(lm_BIC,type="response")
+mod_hurdle_predict <- predict(mod_hurdle,type="response")
+mod_zeroinfl_predict <- predict(mod_zeroinfl,type="response")
+
+dist_df <- data.frame(rbind(
+      cbind(train_actual,"train_actual"),
+      cbind(poisson_AIC_predict,"poisson_AIC_predict"),
+      cbind(poisson_BIC_predict,"poisson_BIC_predict"),
+      cbind(nb_AIC_predict,"nb_AIC_predict"),
+      cbind(nb_BIC_predict,"nb_BIC_predict"),
+      cbind(lm_AIC_predict,"lm_AIC_predict"),
+      cbind(lm_BIC_predict,"lm_BIC_predict"),
+      cbind(mod_hurdle_predict,"mod_hurdle_predict"),
+      cbind(mod_zeroinfl_predict,"mod_zeroinfl_predict")
+      ),stringsAsFactors=FALSE)
+colnames(dist_df) <- c("value","data")
+dist_df$value <- as.numeric(dist_df$value)
+
+
+```
+
+```{r fig.height=3.75, fig.width=3}
+models <- unique(dist_df$data)[-1]
+for (model in models) {
+    plot<-ggplot(dist_df[dist_df$data=="train_actual" | dist_df$data==model,], 
+           aes(x=value, color=data))+ggtitle("Train Data")+geom_density(bw=0.35)+
+           theme(legend.position="bottom")+
+           guides(color=guide_legend(nrow=2, byrow=TRUE))
+    print(plot)
+}
+```
+
+
+
+## Distribution of Predicted Values (test data)
+
+```{r message=FALSE, warning=FALSE}
+#temporary exclude LabelAppeal and STARS in our imputation
+LabelAppeal <- test_df$LabelAppeal
+STARS <- test_df$STARS
+
+test_df$TARGET <- NULL
+test_df$LabelAppeal <- NULL
+test_df$STARS <- NULL
+
+test_df <- mice.reuse(mickey, test_df, maxit = 5, printFlag = FALSE, seed = 2022)[[1]]
+
+test_df$LabelAppeal <- LabelAppeal
+test_df$STARS <- STARS
+
+LabelAppeal <- NULL
+STARS <- NULL
+
+STARS_Y <- !is.na(test_df$STARS)
+test_df$STARS[!STARS_Y] <- 0
+test_df$STARS <- as.factor(test_df$STARS)
+test_df$LabelAppeal <- as.factor(test_df$LabelAppeal)
+```
+
+
+
+```{r}
+poisson_AIC_predict <- predict(poisson_AIC,type="response",data=test_df)
+poisson_BIC_predict <- predict(poisson_BIC,type="response",data=test_df)
+nb_AIC_predict <- predict(nb_AIC,type="response",data=test_df)
+nb_BIC_predict <- predict(nb_BIC,type="response",data=test_df)
+lm_AIC_predict <- predict(lm_AIC,type="response",data=test_df)
+lm_BIC_predict <- predict(lm_BIC,type="response",data=test_df)
+mod_hurdle_predict <- predict(mod_hurdle,type="response",data=test_df)
+mod_zeroinfl_predict <- predict(mod_zeroinfl,type="response",data=test_df)
+
+dist_df <- data.frame(rbind(
+      cbind(poisson_AIC_predict,"poisson_AIC_predict"),
+      cbind(poisson_BIC_predict,"poisson_BIC_predict"),
+      cbind(nb_AIC_predict,"nb_AIC_predict"),
+      cbind(nb_BIC_predict,"nb_BIC_predict"),
+      cbind(lm_AIC_predict,"lm_AIC_predict"),
+      cbind(lm_BIC_predict,"lm_BIC_predict"),
+      cbind(mod_hurdle_predict,"mod_hurdle_predict"),
+      cbind(mod_zeroinfl_predict,"mod_zeroinfl_predict")
+      ),stringsAsFactors=FALSE)
+colnames(dist_df) <- c("value","data")
+dist_df$value <- as.numeric(dist_df$value)
+
+ggplot(dist_df, aes(x=value, color=data))+
+  ggtitle("Evaluation Data")+geom_density(bw=0.35)
+```
