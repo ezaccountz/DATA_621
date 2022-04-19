@@ -52,6 +52,11 @@ test_df$IN <- NULL
 summary(train_df)
 ```
 
+From the summary:
+
+* We can see that most of the chemical properties range from a negative value to a positive value of similar magnitude. These predictor variables seem to be already scaled / standardized. Hence, there is no extreme outliers.
+* **ResidualSugar**, **Chlorides**, **FreeSulfurDioxide**, **TotalSulfurDioxide**, **pH**, **Sulphates**, **Alcohol** have numerous missing values. We will impute the missing values using mice (multivariate imputation by chained equations).
+* **STARS** also have missing values. However, the values are missing simply because they don't have a rating, not because of data collecting problems. We may consider imputing this variable differently.
 
 ## Distribution plots
 
@@ -59,8 +64,8 @@ summary(train_df)
 ```{r message=FALSE, warning=FALSE}
 ggplot(train_df, aes(x=TARGET)) + geom_histogram(na.rm =TRUE)
 ```
-
-
+From above plot, we see that the target value is **zero-inflated**, not a regular poisson distribution nor any distribution of the exponential family.  
+Hence, practically it is not suggested to fit the data to a poisson, negative binomial or linear model. We will not take the validity of the models seriously. 
 
 
 
@@ -89,6 +94,8 @@ plot_FixedAcidity+plot_VolatileAcidity+plot_CitricAcid+plot_ResidualSugar+plot_C
 
 ```
 
+The distributions of the predictor variables show that **LabelAppeal** and **STARS** are good candidates of predicting the target variable. The distributions of other variables do not vary a lot based on the different values of the target variable.
+
 
 ```{r}
 ResidualSugar_Y <- !is.na(train_df$ResidualSugar)
@@ -101,10 +108,14 @@ Alcohol_Y <- !is.na(train_df$Alcohol)
 STARS_Y <- !is.na(train_df$STARS)
 ```
 
+
+Now, let's check whether **STARS** is missing or not have an effect to the cases of wine purchased. 
+
 ```{r fig.height=3, fig.width=5, warning=FALSE}
 ggplot(train_df, aes(x=TARGET, color=STARS_Y)) + geom_density(na.rm =TRUE, bw=0.3)
 ```
 
+The above distributions plot indicates that most people are willing to buy wines with **STARS** provided and not willing to buy wines with **STARS** unavailable. We may add a dummy variable, or transform the **STARS** variable to indicate **STARS** is available or not.
 
 ## Correlations
 
@@ -112,12 +123,20 @@ ggplot(train_df, aes(x=TARGET, color=STARS_Y)) + geom_density(na.rm =TRUE, bw=0.
 corrplot::corrplot(cor(train_df, use = "na.or.complete"), 
                    method = 'number', type = 'lower', diag = FALSE, tl.srt = 0.1)
 ```
-
+Looking at the correlations of the predictor values, there is no multicollinearity problem of the data.
 
 # DATA PREPARATION
 
 ## Data Imputation
 
+
+For imputing the missing values of the chemical properties, the following variables are not included as predictors:
+
+* **TARGET**: the target variable should not be used to predict the missing values of the predictors, as the objective of the models is to predict the target variables using the predictors.
+* **LabelAppeal**: the label appeal of the bottle should not have anything to do with the chemical properties of the wines.
+* **STARS**: More than 25% of the wines have STARS unavailable. Whether it is missing or not should not have anything to do with the chemical properties of the wines.  
+  
+multivariate imputation by chained equations is used to impute the missing values
 ```{r}
 #temporary exclude TARGET, LabelAppeal, and STARS in our imputation
 TARGET <- train_df$TARGET
@@ -129,7 +148,8 @@ train_df$LabelAppeal <- NULL
 train_df$STARS <- NULL
 
 #save the imputation models to impute the test data set later
-mickey <- parlmice(train_df, maxit = 5, m = 1, printFlag = FALSE, seed = 2022, cluster.seed = 2022)
+mickey <- parlmice(train_df, maxit = 5, m = 1, printFlag = FALSE, seed = 2022, 
+                   cluster.seed = 2022)
 
 #save the imputation result
 train_df <- complete(mickey,1)
@@ -143,42 +163,60 @@ TARGET <- NULL
 LabelAppeal <- NULL
 STARS <- NULL
 
-#write.csv(train_df,"train_df.csv", row.names = FALSE)
 ```
 
-```{r}
-#train_df <- read.csv("train_df.csv", stringsAsFactors = TRUE)
+We can compare the imputed data values and the original data values.  
+The plots on the left below show the distributions of the values from the original data.  
+The plots on the right below show the distributions of the imputed values.  
+
+```{r fig.height=15, fig.width=6, warning=FALSE}
+plot_ResidualSugar <- ggplot(train_df[ResidualSugar_Y,], aes(x=ResidualSugar)) + 
+  geom_density(na.rm =TRUE)
+plot_Chlorides <- ggplot(train_df[Chlorides_Y,], aes(x=Chlorides)) + 
+  geom_density(na.rm =TRUE)
+plot_FreeSulfurDioxide <- ggplot(train_df[FreeSulfurDioxide_Y,], aes(x=FreeSulfurDioxide)) + 
+  geom_density(na.rm =TRUE)
+plot_TotalSulfurDioxide <- ggplot(train_df[TotalSulfurDioxide_Y,], aes(x=TotalSulfurDioxide)) + 
+  geom_density(na.rm =TRUE)
+plot_pH <- ggplot(train_df[pH_Y,], aes(x=pH)) + 
+  geom_density(na.rm =TRUE)
+plot_Sulphates <- ggplot(train_df[Sulphates_Y,], aes(x=Sulphates)) + 
+  geom_density(na.rm =TRUE)
+plot_Alcohol <- ggplot(train_df[Alcohol_Y,], aes(x=Alcohol)) + 
+  geom_density(na.rm =TRUE)
+
+plot_ResidualSugar2 <- ggplot(train_df[!ResidualSugar_Y,], aes(x=ResidualSugar)) + 
+  geom_density(na.rm =TRUE)
+plot_Chlorides2 <- ggplot(train_df[!Chlorides_Y,], aes(x=Chlorides)) + 
+  geom_density(na.rm =TRUE)
+plot_FreeSulfurDioxide2 <- ggplot(train_df[!FreeSulfurDioxide_Y,], aes(x=FreeSulfurDioxide)) + 
+  geom_density(na.rm =TRUE)
+plot_TotalSulfurDioxide2 <- ggplot(train_df[!TotalSulfurDioxide_Y,], aes(x=TotalSulfurDioxide)) + 
+  geom_density(na.rm =TRUE)
+plot_pH2 <- ggplot(train_df[!pH_Y,], aes(x=pH)) + 
+  geom_density(na.rm =TRUE)
+plot_Sulphates2 <- ggplot(train_df[!Sulphates_Y,], aes(x=Sulphates)) + 
+  geom_density(na.rm =TRUE)
+plot_Alcohol2 <- ggplot(train_df[!Alcohol_Y,], aes(x=Alcohol)) + 
+  geom_density(na.rm =TRUE)
+
+plot_ResidualSugar+plot_ResidualSugar2+
+  plot_Chlorides+plot_Chlorides2+
+  plot_FreeSulfurDioxide+plot_FreeSulfurDioxide2+
+  plot_TotalSulfurDioxide+plot_TotalSulfurDioxide2+
+  plot_pH+plot_pH2+
+  plot_Sulphates+plot_Sulphates2+
+  plot_Alcohol+plot_Alcohol2+
+  plot_layout(ncol = 2, guides = "collect")
 ```
 
-
-
-
-
-```{r fig.height=3, fig.width=10, warning=FALSE}
-plot_ResidualSugar <- ggplot(train_df[ResidualSugar_Y,], aes(x=ResidualSugar, color=TARGET)) + geom_density(na.rm =TRUE)
-plot_Chlorides <- ggplot(train_df[Chlorides_Y,], aes(x=Chlorides, color=TARGET)) + geom_density(na.rm =TRUE)
-plot_FreeSulfurDioxide <- ggplot(train_df[FreeSulfurDioxide_Y,], aes(x=FreeSulfurDioxide, color=TARGET)) + geom_density(na.rm =TRUE)
-plot_TotalSulfurDioxide <- ggplot(train_df[TotalSulfurDioxide_Y,], aes(x=TotalSulfurDioxide, color=TARGET)) + geom_density(na.rm =TRUE)
-plot_pH <- ggplot(train_df[pH_Y,], aes(x=pH, color=TARGET)) + geom_density(na.rm =TRUE)
-plot_Sulphates <- ggplot(train_df[Sulphates_Y,], aes(x=Sulphates, color=TARGET)) + geom_density(na.rm =TRUE)
-plot_Alcohol <- ggplot(train_df[Alcohol_Y,], aes(x=Alcohol, color=TARGET)) + geom_density(na.rm =TRUE)
-
-plot_ResidualSugar2 <- ggplot(train_df[!ResidualSugar_Y,], aes(x=ResidualSugar, color=TARGET)) + geom_density(na.rm =TRUE)
-plot_Chlorides2 <- ggplot(train_df[!Chlorides_Y,], aes(x=Chlorides, color=TARGET)) + geom_density(na.rm =TRUE)
-plot_FreeSulfurDioxide2 <- ggplot(train_df[!FreeSulfurDioxide_Y,], aes(x=FreeSulfurDioxide, color=TARGET)) + geom_density(na.rm =TRUE)
-plot_TotalSulfurDioxide2 <- ggplot(train_df[!TotalSulfurDioxide_Y,], aes(x=TotalSulfurDioxide, color=TARGET)) + geom_density(na.rm =TRUE)
-plot_pH2 <- ggplot(train_df[!pH_Y,], aes(x=pH, color=TARGET)) + geom_density(na.rm =TRUE)
-plot_Sulphates2 <- ggplot(train_df[!Sulphates_Y,], aes(x=Sulphates, color=TARGET)) + geom_density(na.rm =TRUE)
-plot_Alcohol2 <- ggplot(train_df[!Alcohol_Y,], aes(x=Alcohol, color=TARGET)) + geom_density(na.rm =TRUE)
-
-plot_ResidualSugar+plot_Chlorides+plot_FreeSulfurDioxide+plot_TotalSulfurDioxide+
-  plot_pH+plot_Sulphates+plot_Alcohol+
-  plot_ResidualSugar2+plot_Chlorides2+plot_FreeSulfurDioxide2+plot_TotalSulfurDioxide2+
-  plot_pH2+plot_Sulphates2+plot_Alcohol2+
-  plot_layout(ncol = 7, guides = "collect")
-```
+The distributions look similar and so the imputed values are plausible.
 
 ## Data Transformation
+
+As discussed above, whether **STARS** is available or not is predictive of the target. Moreover, the marginal effect of increasing 1 star may not be equal. For example, the effect from 1 star to 2 star may not be the same as the effect from 4 star to 5 star. Hence, we will impute the missing values of **STARS** by 0 and convert **STARS** to a factor variable. The variable will then be converted to 4 dummies variables in the models.
+  
+Similarly, we will also convert **LabelAppeal** to a factor variable as the marginal effect may changes.
 
 ```{r}
 train_df$STARS[!STARS_Y] <- 0
@@ -187,10 +225,11 @@ train_df$LabelAppeal <- as.factor(train_df$LabelAppeal)
 ```
 
 
-
 # BUILD MODELS
 
 ## Poisson models
+
+We start building our Poisson model with all predictors.
 
 ```{r}
 poisson_full <- glm(TARGET ~ ., data=train_df, family=poisson)
@@ -200,12 +239,16 @@ summary(poisson_full)
 
 ### Backward Elimination by AIC
 
+Starting with our full model, perform backward elimination by comparing the **AIC** of the models. 
+
 ```{r}
 poisson_AIC <- step(poisson_full,trace=0)
 summary(poisson_AIC)
 ```
 
 ### Backward Elimination by BIC
+
+Starting with our full model, perform backward elimination by comparing the **BIC** of the models.
 
 ```{r}
 poisson_BIC <- step(poisson_full,trace=0, k=log(nrow(train_df)))
@@ -215,6 +258,11 @@ summary(poisson_BIC)
 
 ## Negative Binomial models
 
+We start building our Negative Binomial model with all predictors.
+
+Because the data is zero inflated. the glm.nb function is not able to find the optimal value for the additional parameter r.
+Since the density is highest at target = 0, we will build our model using r = 1.
+
 ```{r}
 nb_full <- glm(TARGET ~ ., data=train_df,negative.binomial(1))
 summary(nb_full)
@@ -222,6 +270,7 @@ summary(nb_full)
 
 ### Backward Elimination by AIC
 
+Starting with our full model, perform backward elimination by comparing the **AIC** of the models. 
 
 ```{r}
 nb_AIC <- step(nb_full,trace=0)
@@ -230,18 +279,17 @@ summary(nb_AIC)
 
 ### Backward Elimination by BIC
 
+Starting with our full model, perform backward elimination by comparing the **BIC** of the models.
+
 ```{r}
 nb_BIC <- step(nb_full,trace=0, k=log(nrow(train_df)))
 summary(nb_BIC)
 ```
 
 
-
-
-
-
 ## Multiple Linear Regression Models
 
+We start building our Multiple Linear Regression model with all predictors.
 
 ```{r}
 lm_full <- lm(TARGET ~ ., data=train_df)
@@ -250,12 +298,16 @@ summary(lm_full)
 
 ### Backward Elimination by AIC
 
+Starting with our full model, perform backward elimination by comparing the **AIC** of the models. 
+
 ```{r}
 lm_AIC <- step(lm_full,trace=0)
 summary(lm_AIC)
 ```
 
 ### Backward Elimination by BIC
+
+Starting with our full model, perform backward elimination by comparing the **BIC** of the models.
 
 ```{r}
 lm_BIC <- step(lm_full,trace=0, k=log(nrow(train_df)))
@@ -264,6 +316,8 @@ summary(lm_BIC)
 
 
 ## Model Coefficients Comparison
+
+Now, let's compare the result of our Poisson, Negative Binomial, and Linear models
 
 ```{r}
 poisson_full_coef <- data.frame(poisson_full=poisson_full$coefficients)
@@ -275,36 +329,56 @@ lm_AIC_coef <- data.frame(lm_AIC=round(lm_AIC$coefficients,4))
 lm_BIC_coef <- data.frame(lm_BIC=round(lm_BIC$coefficients,4))
 ```
 
-
 ```{r paged.print=FALSE}
-summary_table <- merge(x=poisson_full_coef, y=poisson_AIC_coef, by="row.names", all=TRUE)
-summary_table <- merge(x=summary_table, y=poisson_BIC_coef, by.x="Row.names", by.y = "row.names", all=TRUE)
-summary_table <- merge(x=summary_table, y=nb_AIC_coef, by.x="Row.names", by.y="row.names", all=TRUE)
-summary_table <- merge(x=summary_table, y=nb_BIC_coef, by.x="Row.names", by.y="row.names", all=TRUE)
-summary_table <- merge(x=summary_table, y=lm_AIC_coef, by.x="Row.names", by.y="row.names", all=TRUE)
-summary_table <- merge(x=summary_table, y=lm_BIC_coef, by.x="Row.names", by.y="row.names", all=TRUE)
+summary_table <- merge(x=poisson_full_coef, y=poisson_AIC_coef, 
+                       by="row.names", all=TRUE)
+summary_table <- merge(x=summary_table, y=poisson_BIC_coef, 
+                       by.x="Row.names", by.y = "row.names", all=TRUE)
+summary_table <- merge(x=summary_table, y=nb_AIC_coef, 
+                       by.x="Row.names", by.y="row.names", all=TRUE)
+summary_table <- merge(x=summary_table, y=nb_BIC_coef, 
+                       by.x="Row.names", by.y="row.names", all=TRUE)
+summary_table <- merge(x=summary_table, y=lm_AIC_coef, 
+                       by.x="Row.names", by.y="row.names", all=TRUE)
+summary_table <- merge(x=summary_table, y=lm_BIC_coef, 
+                       by.x="Row.names", by.y="row.names", all=TRUE)
 summary_table$poisson_full <- NULL
 summary_table
 ```
 
+* Both **STARS** and **LabelAppeal** have postive effect in all models.
+* The coefficients of **STARS** and **LabelAppeal** are very close in the poisson and negative binomial models.
+* **TotalSulfurDioxide** has positive effect in all models. The coefficients seem small but the scale of **TotalSulfurDioxide** is more than 100 times larger than the scales of most other variables.
+* **CitricAcid**, **FixedAcidity**, **ResidualSugar** are not significant in all models.
+* **AcidIndex** and **VolatileAcidity** have negative effect in all models.
+* **Alcohol** and **FreeSulfurDioxide** have positive or no effect in all models.
+* **Chlorides**, **Density**, **pH**, and **Sulphates** have negative or no effect in all models.
+
+
+
+As discussed above, the target variable is zero inflated. It should be better fit the data in a Hurdle model or a zero-inflated model.
 
 ## Hurdle Model
 
 ```{r}
-mod_hurdle <- hurdle(TARGET~.-FixedAcidity-Density-CitricAcid-ResidualSugar-Chlorides, data=train_df)
+mod_hurdle <- hurdle(TARGET~.-FixedAcidity-Density-CitricAcid-ResidualSugar-Chlorides, 
+                     data=train_df)
 summary(mod_hurdle)
 ```
 
 ## Zero Inflation Model
 
 ```{r}
-mod_zeroinfl <- zeroinfl(TARGET~.-FixedAcidity-Density-CitricAcid-ResidualSugar-Chlorides, data=train_df)
+mod_zeroinfl <- zeroinfl(TARGET~.-FixedAcidity-Density-CitricAcid-ResidualSugar-Chlorides, 
+                         data=train_df)
 summary(mod_zeroinfl)
 ```
 
 # SELECT MODELS
 
 ## Root Mean Squared Error
+
+Since we have models of different types (Poisson, Negative Binomial, Multiple Linear), it's not appropriate to use R squared, AIC or BIC to compare the models. To comparing the performance, the root mean squared error would be a good standard since it is a measurement of the distance between the predicted values and the actual values.
 
 ```{r}
 data.frame(poisson_AIC=sqrt(mean(residuals(poisson_AIC, type="response")^2)),
@@ -317,7 +391,11 @@ data.frame(poisson_AIC=sqrt(mean(residuals(poisson_AIC, type="response")^2)),
            mod_zeroinfl=sqrt(mean(residuals(mod_zeroinfl, type="response")^2)))
 ```
 
+From the RMSE of all models, the hurdle model has the best performance. This is expected since hurdle model is designed for zero-inflated data.
+
 ## Distribution of Predicted Values (train data)
+
+We can also look at the distributions of the model predictions of the training data.
 
 ```{r}
 train_actual <- train_df$TARGET
@@ -358,7 +436,13 @@ for (model in models) {
 }
 ```
 
+The predictions of Poisson models and Negative Binomial models have similar distribution. They do well in modeling the peak near 0. However, the peak is at 1, there is nearly no prediction of target = 0.  
+  
+The linear models are the worst, they do even predict some negative values since it is not bounded.  
+  
+The hurdle model and the zero-inflated model do not model the peak near 0 as well as the Poisson models or Negative Binomial models do. However, they successfully predict some cases with target = 0. Moreover, the models are fitting the data better at target greater or equal to 3.
 
+This confirms our findings above that the hurdle model and the zero-inflated model suit our data better. 
 
 ## Distribution of Predicted Values (test data)
 
@@ -371,21 +455,24 @@ test_df$TARGET <- NULL
 test_df$LabelAppeal <- NULL
 test_df$STARS <- NULL
 
+#save the imputation result
 test_df <- mice.reuse(mickey, test_df, maxit = 5, printFlag = FALSE, seed = 2022)[[1]]
 
+#Add TARGET, LabelAppeal, and STARS back to our dataframe
 test_df$LabelAppeal <- LabelAppeal
 test_df$STARS <- STARS
 
 LabelAppeal <- NULL
 STARS <- NULL
 
+#data transformation
 STARS_Y <- !is.na(test_df$STARS)
 test_df$STARS[!STARS_Y] <- 0
 test_df$STARS <- as.factor(test_df$STARS)
 test_df$LabelAppeal <- as.factor(test_df$LabelAppeal)
 ```
 
-
+The following are the distributions of the predicted values of our models using the evaluation data.
 
 ```{r}
 poisson_AIC_predict <- predict(poisson_AIC,type="response",data=test_df)
@@ -413,3 +500,5 @@ dist_df$value <- as.numeric(dist_df$value)
 ggplot(dist_df, aes(x=value, color=data))+
   ggtitle("Evaluation Data")+geom_density(bw=0.35)
 ```
+
+The distributions are very close to our predictions using the training data. The predictions produce plausible results.
