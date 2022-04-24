@@ -1,0 +1,280 @@
+---
+title: "DATA_621_Final_Project"
+author: "Chi Pong, Euclid Zhang, Jie Zou, Joseph Connolly, LeTicia Cancel"
+date: "4/19/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library("stringr")
+library("dplyr")
+library("tidyr")
+
+library("arm")
+library("pROC")
+library("car")
+library("caret")
+```
+
+
+Note:
+
+1. No user is using multiple device.
+2. Users stay in the same location.
+3. All songs are finished before going to the next song.
+4. There is no remove from Playlist record.
+
+
+
+
+```{r}
+df <- read.csv("sparkify-medium.csv", stringsAsFactors = FALSE, row.names=1)
+```
+
+
+
+```{r}
+regist_df <- filter(df,df$page=="Submit Registration")
+
+for (i in c(1:nrow(regist_df))) {
+  temp_df <- df %>% 
+                filter(sessionId==regist_df$sessionId[i]) %>%
+                filter(!is.na(userId)) %>% 
+                mutate(delta=abs(ts-regist_df$ts[i])) %>% 
+                arrange(delta,desc=FALSE)
+
+  df[!is.na(df$userId) & df$userId==temp_df$userId[1],"registration"] <- regist_df$ts[i]
+}
+```
+
+```{r}
+df <- filter(df,!is.na(userId))
+```
+
+
+```{r}
+df$userAgent[str_detect(df$userAgent,"Macintosh")] <- "Macintosh"
+df$userAgent[str_detect(df$userAgent,"iPad")] <- "iPad"
+df$userAgent[str_detect(df$userAgent,"iPhone")] <- "iPhone"
+df$userAgent[str_detect(df$userAgent,"Windows")] <- "Windows"
+df$userAgent[str_detect(df$userAgent,"Linux")] <- "Linux"
+```
+
+```{r}
+selected_pages <- c("NextSong","Roll Advert","Add Friend","Thumbs Up",
+                    "Add to Playlist", "Upgrade", "Submit Upgrade", "Error",
+                    "Thumbs Down","Cancel", "Cancellation Confirmation",
+                    "Downgrade", "Submit Downgrade","Submit Registration")
+df <- df[df$page %in% selected_pages,]
+```
+
+
+```{r}
+factor_columns <- c("page","auth","method","status","level","gender","userAgent")
+
+df[factor_columns] <- lapply(df[factor_columns], factor)
+```
+
+```{r}
+df$home <- NULL
+df$method <- NULL
+df$status <- NULL
+df$itemInSession <- NULL
+df$location <- NULL
+df$lastName <- NULL
+df$firstName <- NULL
+```
+
+
+```{r}
+df <- arrange(df, ts,desc=FALSE)
+head(df)
+```
+
+```{r}
+df$user_song <- paste0(df$userId, df$artist, df$song)
+temp <- df %>% group_by(user_song) %>% mutate(count=row_number())
+df$new_song <- temp$count
+temp <- NULL
+df$user_song <- NULL
+df$new_song[df$new_song > 1] <- 0
+df$new_song[is.na(df$song)] <- NA
+```
+
+```{r}
+df$ts <- df$ts/1000
+df$registration <- df$registration/1000
+df$week_reg <- 0
+
+begin_ts <- 1538352000
+end_ts <- 1543795199
+
+for (ts in seq(begin_ts, end_ts, 604800)) {
+  df$week_begins[between(df$ts,ts,ts+604799)] <- as.Date(as.POSIXct(ts, origin="1970-01-01"))
+  df$week_reg[between(df$registration,ts,ts+604799)] <- 1
+}
+df$week_begins <- as.Date(df$week_begins,origin="1970-01-01")
+df$week_reg <- as.factor(df$week_reg)
+```
+
+
+```{r}
+df$date <- as.Date(as.POSIXct(df$ts, origin="1970-01-01"))
+df$registration <- as.Date(as.POSIXct(df$registration, origin="1970-01-01"))
+```
+
+
+
+```{r}
+df$weeks_since_reg <- as.numeric(floor((df$week_begins-df$registration)/7)) 
+```
+
+```{r}
+df$weeks_since_reg[df$weeks_since_reg<0] <- 0
+```
+
+
+```{r}
+summary(df)
+```
+
+```{r}
+df2 <- df
+```
+
+```{r}
+df2$auth <- NULL
+
+summary(df2)
+```
+
+
+```{r}
+page_df <- df2 %>% group_by(userId,week_begins) %>% 
+  count(page) %>% 
+  spread(page, n, fill = 0)
+page_df$NextSong <- NULL
+page_df$Cancel <- NULL
+```
+
+
+```{r message=FALSE, warning=FALSE}
+user_df <- df2 %>% filter(!is.na(song)) %>% 
+  arrange(ts, desc=FALSE) %>% 
+  group_by(userId,week_begins) %>% 
+  summarise(active_sessions=n_distinct(sessionId),
+            active_days=n_distinct(date),
+            songs_listened=n(),
+            new_songs_listened=sum(new_song),
+            weeks_since_reg=first(weeks_since_reg),
+            level=last(level),
+            gender=first(gender),
+            userAgent=first(userAgent),
+            week_reg=first(week_reg))
+```
+```{r}
+prepared_df <- merge(user_df, page_df, by=c("userId","week_begins")) %>% 
+                arrange(userId, week_begins)
+```
+
+
+```{r}
+one_week_active <- prepared_df %>% group_by(userId) %>% 
+  summarise(activate_weeks=n()) %>% 
+  filter(activate_weeks==1)
+
+filter(prepared_df, userId %in% one_week_active$userId)
+
+prepared_df <- filter(prepared_df, !userId %in% one_week_active$userId)
+```
+
+```{r}
+prepared_df$cancelled_after <- c(prepared_df$`Cancellation Confirmation`[-1],0)
+```
+
+
+```{r}
+prepared_df <- prepared_df %>% filter(week_reg != 1) %>% 
+  filter(week_begins != "2018-11-26") %>% 
+  filter(`Cancellation Confirmation` != 1)
+```
+
+
+
+```{r}
+prepared_df$week_reg <- NULL
+prepared_df$`Cancellation Confirmation` <- NULL
+
+prepared_df$percent_new_songs <- prepared_df$new_songs_listened/prepared_df$songs_listened
+prepared_df$new_songs_listened <- NULL
+
+summary(prepared_df)
+```
+```{r}
+summary(as.factor(prepared_df2$cancelled_after))
+```
+```{r}
+temp <- prepared_df %>% filter(prepared_df$cancelled_after == 1) %>% 
+      slice(rep(1:n(), 25))
+prepared_df2 <- bind_rows(prepared_df, temp)
+
+temp<- NULL
+summary(prepared_df2)
+```
+
+
+```{r}
+logi_model <- glm(cancelled_after~.-userId-week_begins-active_sessions+I(weeks_since_reg^2),family = binomial, prepared_df2)
+```
+
+```{r}
+summary(logi_model)
+```
+```{r}
+#arm::binnedplot(x = fitted(logi_AIC), y = residuals(logi_AIC, type="pearson"),
+# arm::binnedplot(x = predict(logi_model, type="link"), y = residuals(logi_model, type="response"),                
+#                 nclass = NULL, 
+#                 xlab = "Mean of Link Function Value", 
+#                 ylab = "Average Pearson residual", 
+#                 main = "Binned residual plot", 
+#                 cex.pts = 0.8, 
+#                 col.pts = 1, 
+#                 col.int = "gray")
+``` 
+
+
+```{r fig.height=5, fig.width=8, message=FALSE, warning=FALSE}
+marginalModelPlots(logi_model,~+active_days+songs_listened+
+                     weeks_since_reg+percent_new_songs,
+                   layout =c(2,3))
+```
+
+
+
+```{r}
+predicted_class <- ifelse(logi_model$fitted.values>0.5,1,0)
+confusion_matrix <- confusionMatrix(as.factor(predicted_class),
+                                      as.factor(prepared_df2$cancelled_after),
+                                    mode = "everything",positive = "1")
+confusion_matrix
+```
+
+
+
+```{r}
+
+```
+
+
+
+
+
+
+
+
+
