@@ -115,11 +115,11 @@ begin_ts <- 1538352000
 end_ts <- 1543795199
 
 for (ts in seq(begin_ts, end_ts, 604800)) {
-  df$week_begins[between(df$ts,ts,ts+604799)] <- as.Date(as.POSIXct(ts, origin="1970-01-01"))
-  df$week_reg[between(df$registration,ts,ts+604799)] <- 1
+  temp <- between(df$ts,ts,ts+604799)
+  df$week_begins[temp] <- as.Date(as.POSIXct(ts, origin="1970-01-01"))
+  df$week_reg[between(df$registration,ts,ts+604799) & temp] <- 1
 }
 df$week_begins <- as.Date(df$week_begins,origin="1970-01-01")
-df$week_reg <- as.factor(df$week_reg)
 ```
 
 
@@ -172,15 +172,102 @@ user_df <- df2 %>% filter(!is.na(song)) %>%
             songs_listened=n(),
             new_songs_listened=sum(new_song),
             weeks_since_reg=first(weeks_since_reg),
-            level=last(level),
+            start_level=first(level),
+            end_level=last(level),
             gender=first(gender),
             userAgent=first(userAgent),
-            week_reg=first(week_reg))
+            week_reg=first(week_reg),
+            last_active=last(ts))
 ```
 ```{r}
 prepared_df <- merge(user_df, page_df, by=c("userId","week_begins")) %>% 
                 arrange(userId, week_begins)
 ```
+
+
+
+```{r}
+obs_df <- data.frame(userId=unique(prepared_df$userId))
+obs_df$start <- as.Date(as.POSIXct(1538352000, origin="1970-01-01"))
+obs_df$end <- as.Date(as.POSIXct(1543190400, origin="1970-01-01"))
+temp <- prepared_df[prepared_df$week_reg == 1,c("userId","week_begins")]
+obs_df$start[obs_df$userId %in% temp$userId] <- temp$week_begins
+temp <-prepared_df[prepared_df$`Cancellation Confirmation` == 1,c("userId","week_begins")]
+obs_df$end[obs_df$userId %in% temp$userId] <- temp$week_begins
+
+obs_df
+```
+```{r}
+all_period_df <- data.frame(userId=NA, week_begins=NA)
+
+cursor <- 1
+for (i in c(1:nrow(obs_df))) {
+    for (date in seq(obs_df$start[i], obs_df$end[i], 7)) {
+        all_period_df[cursor,] <- c(obs_df$userId[i], as.Date(date, origin="1970-01-01"))
+         cursor = cursor + 1
+    }
+}
+
+all_period_df$userId <- as.integer(all_period_df$userId)
+all_period_df$week_begins <- as.Date(all_period_df$week_begins, origin="1970-01-01")
+
+all_period_df
+```
+```{r}
+
+prepared_df <- merge(all_period_df, prepared_df, by=c("userId","week_begins"), all.x = TRUE)
+
+```
+
+
+```{r}
+prepared_df
+```
+
+
+```{r}
+prepared_df<- prepared_df %>% 
+  group_by(userId) %>%
+  fill(end_level,.direction = "down") %>% 
+  fill(gender,.direction = "updown") %>% 
+  fill(userAgent,.direction = "updown") %>% 
+  fill(start_level,.direction = "up")
+```
+```{r}
+prepared_df$end_level[is.na(prepared_df$end_level)]<-prepared_df$start_level[is.na(prepared_df$end_level)]
+prepared_df$start_level <- NULL
+prepared_df
+```
+```{r}
+prepared_df$last_active[is.na(prepared_df$last_active) & prepared_df$week_begins == "2018-10-01"] <- 1538352000
+prepared_df
+```
+
+
+```{r}
+prepared_df <- prepared_df %>%
+    group_by(userId) %>%
+    fill(last_active,.direction = "down") %>% 
+    mutate(last_active = dplyr::lag(last_active, n = 1, default = 1538352000))
+```
+```{r}
+for (i in c(1:ncol(prepared_df))) {
+  if (any(is.na(prepared_df[,i]))) {
+    prepared_df[is.na(prepared_df[,i]),i] <- 0
+  }
+}
+prepared_df
+```
+
+```{r}
+prepared_df$inactive_days <- round((as.numeric(as.POSIXct(prepared_df$week_begins)) - prepared_df$last_active)/(3600*24),2)
+prepared_df$last_active <- NULL
+```
+
+```{r}
+prepared_df
+```
+
 
 
 ```{r}
@@ -189,86 +276,29 @@ one_week_active <- prepared_df %>% group_by(userId) %>%
   filter(activate_weeks==1)
 
 filter(prepared_df, userId %in% one_week_active$userId)
-
-prepared_df <- filter(prepared_df, !userId %in% one_week_active$userId)
-```
-
-```{r}
-prepared_df$cancelled_after <- c(prepared_df$`Cancellation Confirmation`[-1],0)
-```
-
-
-```{r}
-prepared_df <- prepared_df %>% filter(week_reg != 1) %>% 
-  filter(week_begins != "2018-11-26") %>% 
-  filter(`Cancellation Confirmation` != 1)
 ```
 
 
 
-```{r}
-prepared_df$week_reg <- NULL
-prepared_df$`Cancellation Confirmation` <- NULL
-
-prepared_df$percent_new_songs <- prepared_df$new_songs_listened/prepared_df$songs_listened
-prepared_df$new_songs_listened <- NULL
-
-summary(prepared_df)
-```
-```{r}
-summary(as.factor(prepared_df2$cancelled_after))
-```
-```{r}
-temp <- prepared_df %>% filter(prepared_df$cancelled_after == 1) %>% 
-      slice(rep(1:n(), 25))
-prepared_df2 <- bind_rows(prepared_df, temp)
-
-temp<- NULL
-summary(prepared_df2)
-```
-
-
-```{r}
-logi_model <- glm(cancelled_after~.-userId-week_begins-active_sessions+I(weeks_since_reg^2),family = binomial, prepared_df2)
-```
-
-```{r}
-summary(logi_model)
-```
-```{r}
-#arm::binnedplot(x = fitted(logi_AIC), y = residuals(logi_AIC, type="pearson"),
-# arm::binnedplot(x = predict(logi_model, type="link"), y = residuals(logi_model, type="response"),                
-#                 nclass = NULL, 
-#                 xlab = "Mean of Link Function Value", 
-#                 ylab = "Average Pearson residual", 
-#                 main = "Binned residual plot", 
-#                 cex.pts = 0.8, 
-#                 col.pts = 1, 
-#                 col.int = "gray")
-``` 
-
-
-```{r fig.height=5, fig.width=8, message=FALSE, warning=FALSE}
-marginalModelPlots(logi_model,~+active_days+songs_listened+
-                     weeks_since_reg+percent_new_songs,
-                   layout =c(2,3))
-```
 
 
 
-```{r}
-predicted_class <- ifelse(logi_model$fitted.values>0.5,1,0)
-confusion_matrix <- confusionMatrix(as.factor(predicted_class),
-                                      as.factor(prepared_df2$cancelled_after),
-                                    mode = "everything",positive = "1")
-confusion_matrix
-```
 
 
 
-```{r}
 
-```
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
