@@ -30,7 +30,9 @@ Note:
 1. No user is using multiple device.
 2. Users stay in the same location.
 3. All songs are finished before going to the next song.
-4. There is no remove from Playlist record.
+4. There is no "remove from Playlist" record.
+5. Only users who canceled the service are considered as churned. Free users with no activities are not considered as churned.
+6. We only have data from 10/1/2018 to 12/1/2018
 
 
 
@@ -430,13 +432,13 @@ temp <- active_train %>% filter(active_train$cancel == 1) %>%
       slice(rep(1:n(), 
             round(nrow(filter(active_train, cancel == 0))/
                     nrow(filter(active_train, cancel == 1)),0)-1))
-active_train <- bind_rows(active_train, temp)
+active_train_up <- bind_rows(active_train, temp)
 
 temp <- inactive_train %>% filter(inactive_train$cancel == 1) %>% 
       slice(rep(1:n(), 
             round(nrow(filter(inactive_train, cancel == 0))/
                     nrow(filter(inactive_train, cancel == 1)),0)-1))
-inactive_train <- bind_rows(inactive_train, temp)
+inactive_train_up <- bind_rows(inactive_train, temp)
 
 temp <- NULL
 ```
@@ -445,10 +447,10 @@ temp <- NULL
 
 
 
-
+Model for the weeks with activities
 
 ```{r}
-active_logi <- glm(cancel~.,family = binomial, active_train)
+active_logi <- glm(cancel~.,family = binomial, active_train_up)
 ```
 
 
@@ -458,35 +460,53 @@ summary(active_logi)
 
 
 
+Performance evaluation using the up-sampled data
+
 ```{r}
 predicted_class <- ifelse(active_logi$fitted.values>0.5,1,0)
+confusion_matrix <- confusionMatrix(as.factor(predicted_class),
+                                      active_train_up$cancel,
+                                    mode = "everything",positive = "1")
+confusion_matrix
+```
+Performance evaluation using the pre-up-sampled data
+
+```{r}
+predicted_class <- ifelse(predict(active_logi,active_train,type="response")>0.5,1,0)
 confusion_matrix <- confusionMatrix(as.factor(predicted_class),
                                       active_train$cancel,
                                     mode = "everything",positive = "1")
 confusion_matrix
 ```
-
-
-
+Model for the weeks with no activities
 
 ```{r}
-inactive_logi <- glm(cancel~.,family = binomial, inactive_train)
+inactive_logi <- glm(cancel~.,family = binomial, inactive_train_up)
 ```
 
 ```{r}
 summary(inactive_logi)
 ```
 
+Performance evaluation using the up-sampled data
 
 ```{r}
 predicted_class <- ifelse(inactive_logi$fitted.values>0.5,1,0)
+confusion_matrix <- confusionMatrix(as.factor(predicted_class),
+                                      inactive_train_up$cancel,
+                                    mode = "everything",positive = "1")
+confusion_matrix
+```
+Performance evaluation using the pre-up-sampled data
+
+
+```{r}
+predicted_class <- ifelse(predict(inactive_logi,inactive_train,type="response")>0.5,1,0)
 confusion_matrix <- confusionMatrix(as.factor(predicted_class),
                                       inactive_train$cancel,
                                     mode = "everything",positive = "1")
 confusion_matrix
 ```
-
-
 
 
 
