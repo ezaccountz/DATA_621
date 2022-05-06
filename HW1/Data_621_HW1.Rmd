@@ -3,9 +3,9 @@ title: "DATA_621_HW1"
 author: "Chi Pong, Euclid Zhang, Jie Zou, Joseph Connolly, LeTicia Cancel"
 date: "1/30/2022"
 output:
-  pdf_document: default
   html_document:
     df_print: paged
+  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -191,6 +191,15 @@ We will impute the missing values by using linear regression models. We will not
 In the imputation models, **TARGET_WINS** is not included as an independent variable since the values are not provided in the test data set. We will need to use the same models to impute missing values in the test data set.
 
 We will perform separate imputations in the following order, based on the number of missing values: 1. **TEAM_BATTING_SO** 2. **TEAM_BASERUN_SB** 3. **TEAM_FIELDING_DP** 4. **TEAM_BASERUN_CS**
+<<<<<<< HEAD
+
+Variables that are already imputed are included in the models after and un-imputed variables are not included. We will keep the trained models and use them to impute missing values in the test data set.
+
+Before imputations:
+
+```{r}
+missing_df <- data.frame(train_prepared_df$TEAM_BATTING_SO,train_prepared_df$TEAM_BASERUN_SB,train_prepared_df$TEAM_BASERUN_CS, train_prepared_df$TEAM_FIELDING_DP)
+=======
 
 Variables that are already imputed are included in the models after and un-imputed variables are not included. We will keep the trained models and use them to impute missing values in the test data set.
 
@@ -201,6 +210,7 @@ missing_df <- data.frame(train_prepared_df$TEAM_BATTING_SO,
                          train_prepared_df$TEAM_BASERUN_SB,
                          train_prepared_df$TEAM_BASERUN_CS, 
                          train_prepared_df$TEAM_FIELDING_DP)
+>>>>>>> b76a11d7a3067cdcc0d97623960fb8d036fec68f
 
 (colMeans(is.na(missing_df)))*100
 ```
@@ -242,7 +252,16 @@ missing_df <- data.frame(train_prepared_df$TEAM_BATTING_SO,
 
 ```
 
+<<<<<<< HEAD
+After imputations:
+
+```{r}
+# imputed_df <- data.frame(lm_team_bat_so, lm_team_bas_sb, lm_team_fld_dp, lm_team_bas_cs)
+# (colMeans(is.na(imputed_df)))*100
+```
+=======
 As you can all see, the 4 variables, *TEAM_BATTING_SO, TEAM_BASERUN_SB, TEAM_BASERUN_CS, TEAM_FIELDING_DP*, all are having 0 missing values. Meaning they are no longer presented with missing values.
+>>>>>>> b76a11d7a3067cdcc0d97623960fb8d036fec68f
 
 The R-squared values of the models are:
 
