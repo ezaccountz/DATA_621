@@ -95,6 +95,8 @@ df[factor_columns] <- lapply(df[factor_columns], factor)
 ```
 
 Remove some variables that are not used in our analysis
+
+***why do we exclude location variable? I think we can see which location may have higher rate to churn no?***
 ```{r}
 df$home <- NULL
 df$method <- NULL
