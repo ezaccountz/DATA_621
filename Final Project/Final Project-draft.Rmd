@@ -167,7 +167,7 @@ For each weekly record, include the following information:
 * Gender
 * userAgent (the type of device)
 * Indicator whether the user register during the week
-* Time stamp of the last activity of the user duting the week 
+* Time stamp of the last activity of the user during the week 
 
 ```{r message=FALSE, warning=FALSE}
 user_df <- df %>% filter(!is.na(song)) %>% 
