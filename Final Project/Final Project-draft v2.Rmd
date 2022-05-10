@@ -239,3 +239,74 @@ prepared_df$oldest_songs_phour  <- prepared_df$oldest_total_song / lookback_wind
 prepared_df
 
 ```
+
+```{r}
+# Calculation of user's average number of events per session
+session_avg <- df %>% 
+                group_by(userId, sessionId) %>%
+                summarise(events = n(), .groups = 'drop') %>%
+                group_by(userId) %>%
+                summarise(avg_events_per_session = mean(events)) 
+
+
+session_avg
+```
+
+```{r}
+# Calculation of user's average session duration
+
+session_avg_length = df  %>% 
+                    group_by(userId, sessionId) %>%
+                    arrange(ts, .by_group = TRUE) %>% 
+                    # filter(userId==3) %>%
+                    summarise( session_begin_ts = min(ts), 
+                               session_end_ts = max(ts), 
+                               .groups = 'drop') %>% 
+                    group_by(userId) %>% 
+                    summarise( avg_session_duration = mean(session_end_ts-session_begin_ts))
+
+session_avg_length
+```
+
+```{r}
+# Calculations to obtain user's average number of songs played between home visits
+window_home_songs  <-  df  %>% 
+                       group_by(userId) %>%
+                       arrange(ts, .by_group = TRUE) %>% 
+                       mutate(home_visits = cumsum(case_when( page == 'Home' ~ 1, TRUE ~ 0))) %>%
+                       # summarise(home_button = case_when( page == 'Home' ~ 1, TRUE ~ 0), .groups = 'drop') %>%
+                       group_by(userId, home_visits) %>%
+                       summarise(nsongs = cumsum(sum(case_when (page == 'NextSong' ~ 1, TRUE ~ 0))), 
+                                 .groups = 'drop')  %>%
+                       group_by(userId) %>%
+                       # filter(userId==4) %>%
+                       summarise(avg_songs_btwn_home = mean(nsongs))
+
+window_home_songs
+```
+
+```{r}
+# Calculations to obtain user's average number of songs played between ads played
+window_ads_songs  <-  df  %>% 
+                       group_by(userId) %>%
+                       arrange(ts, .by_group = TRUE) %>% 
+                       mutate(ads_played = cumsum(case_when( page == 'Roll Advert' ~ 1, TRUE ~ 0))) %>%
+                       # summarise(home_button = case_when( page == 'Home' ~ 1, TRUE ~ 0), .groups = 'drop') %>%
+                       group_by(userId, ads_played) %>%
+                       summarise(nsongs = cumsum(sum(case_when (page == 'NextSong' ~ 1, TRUE ~ 0))), 
+                                 .groups = 'drop')  %>%
+                       group_by(userId) %>%
+                       # filter(userId==4) %>%
+                       summarise(avg_songs_btwn_ads = mean(nsongs))
+
+window_ads_songs
+```
+
+```{r}
+df  %>% 
+                       group_by(userId) %>%
+                       arrange(ts, .by_group = TRUE) %>% 
+                       mutate(ads_played = cumsum(case_when( page == 'Roll Advert' ~ 1, TRUE ~ 0))) %>%
+                       group_by(level, ads_played) %>%
+                       summarise (sum=n() , .groups = 'drop' )
+```
