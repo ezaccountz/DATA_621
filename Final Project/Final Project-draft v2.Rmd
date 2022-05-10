@@ -313,6 +313,8 @@ df  %>%
                        summarise (sum=n() , .groups = 'drop' )
 ```
 
+Incorporating all the newly defined business metrics into the main data.frame (prepared_df)
+
 ```{r}
 prepared_df1 <- merge(prepared_df, session_avg, by=c("userId")) %>% 
                 arrange(userId)
@@ -325,5 +327,6 @@ prepared_df3 <- merge(prepared_df2, window_home_songs, by=c("userId")) %>%
   
 prepared_df4 <- merge(prepared_df3, window_ads_songs, by=c("userId")) %>% 
                 arrange(userId)
+prepared_df4
 
 ```
