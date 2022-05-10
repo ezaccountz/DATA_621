@@ -303,10 +303,27 @@ window_ads_songs
 ```
 
 ```{r}
+# analysis of ads playing by level
+
 df  %>% 
                        group_by(userId) %>%
                        arrange(ts, .by_group = TRUE) %>% 
                        mutate(ads_played = cumsum(case_when( page == 'Roll Advert' ~ 1, TRUE ~ 0))) %>%
                        group_by(level, ads_played) %>%
                        summarise (sum=n() , .groups = 'drop' )
+```
+
+```{r}
+prepared_df1 <- merge(prepared_df, session_avg, by=c("userId")) %>% 
+                arrange(userId)
+  
+prepared_df2 <- merge(prepared_df1, session_avg_length, by=c("userId")) %>% 
+                arrange(userId)
+
+prepared_df3 <- merge(prepared_df2, window_home_songs, by=c("userId")) %>% 
+                arrange(userId)
+  
+prepared_df4 <- merge(prepared_df3, window_ads_songs, by=c("userId")) %>% 
+                arrange(userId)
+
 ```
