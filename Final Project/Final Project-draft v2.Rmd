@@ -33,7 +33,7 @@ Note:
 6.  We only have data from 10/1/2018 to 12/1/2018
 
 ```{r}
-setwd("/Users/dpong/Data 621/Final_Project/Datasets")
+#setwd("/Users/dpong/Data 621/Final_Project/Datasets")
 
 df <- read.csv("sparkify-medium.csv", stringsAsFactors = FALSE, row.names=1)
 ```
@@ -105,6 +105,7 @@ Create a new variable indicating whether it is a song that the user never listen
 
 ```{r}
 df <- arrange(df, ts,desc=FALSE)
+
 df$user_song <- paste0(df$userId, df$artist, df$song)
 temp <- df %>% group_by(user_song) %>% mutate(count=row_number())
 df$new_song <- temp$count
@@ -142,6 +143,9 @@ user_df
 ```
 
 ```{r}
+#Euclid: Fix the bug by sorting the user Id first
+df <- df %>% arrange(userId, desc=FALSE)
+
 obs_df <- data.frame(userId=unique(df$userId))
 obs_df$start <- ifelse(user_df$registration > 1538352000000, user_df$registration, 1538352000000)
 obs_df$end <- 1543622400000
@@ -206,6 +210,8 @@ temp <- df_oldest %>%
 prepared_df <- merge(prepared_df, temp, by=c("userId"), all.x=TRUE)
 
 temp <- NULL
+#Euclid: fix the records with no actitivies
+prepared_df[is.na(prepared_df)] <- 0
 prepared_df
 
 ```
@@ -213,30 +219,50 @@ prepared_df
 Calculation of defined features that can be used as predictors for identifying users that are to churn.
 
 ```{r}
+train_df <- dplyr::select(prepared_df,userId,end_level,gender,userAgent)
+train_df$churn <- as.factor(prepared_df$Cancellation_Confirmation)
+```
+
+
+```{r}
 
 prepared_df$duration_in_hours <- (prepared_df$end - prepared_df$start)/3600/1000
 
-prepared_df$tot_act_phour <- prepared_df$Total_Activities/prepared_df$duration_in_hours
-prepared_df$songs_phour <- prepared_df$NextSong/prepared_df$duration_in_hours
-prepared_df$tot_tu_phour <- prepared_df$Thumbs_Up/prepared_df$duration_in_hours
-prepared_df$tot_td_phour <- prepared_df$Thumbs_Down/prepared_df$duration_in_hours
-prepared_df$frds_added_phour <- prepared_df$Add_Friend/prepared_df$duration_in_hours
-prepared_df$tot_add2PL_phour <- prepared_df$Add_to_Playlist/prepared_df$duration_in_hours
-prepared_df$HP_visits_phour <- prepared_df$Home/prepared_df$duration_in_hours
-prepared_df$HP_visits_phour <- prepared_df$Home/prepared_df$duration_in_hours
-prepared_df$tot_ads_phour <- prepared_df$Roll_Advert/prepared_df$duration_in_hours
-prepared_df$tot_errs_phour <- prepared_df$Error/prepared_df$duration_in_hours
-prepared_df$upgrade_downgrades_phour <- (prepared_df$Submit_Upgrade + prepared_df$Submit_Downgrade)/prepared_df$duration_in_hours
-prepared_df$upgrade_downgrades <- (prepared_df$Submit_Upgrade + prepared_df$Submit_Downgrade)
-prepared_df$song_ratio <- prepared_df$NextSong / prepared_df$Total_Activities
-prepared_df$new_songs_ratio <- prepared_df$new_songs_listened / prepared_df$NextSong
-prepared_df$pos_negative_ratio <- prepared_df$Thumbs_Up/(prepared_df$Thumbs_Down + 0.0001)
-prepared_df$tot_recent_act_phour  <- prepared_df$recent_total_act / lookback_window / 24
-prepared_df$tot_oldest_act_phour  <- prepared_df$oldest_total_act / lookback_window / 24
-prepared_df$recent_songs_phour  <- prepared_df$recent_total_song / lookback_window / 24
-prepared_df$oldest_songs_phour  <- prepared_df$oldest_total_song / lookback_window / 24
+train_df$tot_act_phour <- prepared_df$Total_Activities/prepared_df$duration_in_hours
+train_df$songs_phour <- prepared_df$NextSong/prepared_df$duration_in_hours
+train_df$tot_tu_phour <- prepared_df$Thumbs_Up/prepared_df$duration_in_hours
+train_df$tot_td_phour <- prepared_df$Thumbs_Down/prepared_df$duration_in_hours
+train_df$frds_added_phour <- prepared_df$Add_Friend/prepared_df$duration_in_hours
+train_df$tot_add2PL_phour <- prepared_df$Add_to_Playlist/prepared_df$duration_in_hours
+train_df$HP_visits_phour <- prepared_df$Home/prepared_df$duration_in_hours
+#Euclid: Remove duplicated code
+#prepared_df$HP_visits_phour <- prepared_df$Home/prepared_df$duration_in_hours
+train_df$tot_ads_phour <- prepared_df$Roll_Advert/prepared_df$duration_in_hours
+train_df$tot_errs_phour <- prepared_df$Error/prepared_df$duration_in_hours
+#Euclid: keep upgrade and downgrade separated
+#train_df$upgrade_downgrades_phour <- (prepared_df$Submit_Upgrade + prepared_df$Submit_Downgrade)/prepared_df$duration_in_hours
+train_df$upgrades_phour <- prepared_df$Submit_Upgrade/prepared_df$duration_in_hours
+train_df$downgrades_phour <- prepared_df$Submit_Downgrade/prepared_df$duration_in_hours
 
-prepared_df
+#train_df$upgrade_downgrades <- (prepared_df$Submit_Upgrade + prepared_df$Submit_Downgrade)
+
+train_df$song_ratio <- prepared_df$NextSong / prepared_df$Total_Activities
+train_df$new_songs_ratio <- prepared_df$new_songs_listened / prepared_df$NextSong
+
+#prepared_df$pos_negative_ratio <- prepared_df$Thumbs_Up/(prepared_df$Thumbs_Down + 0.0001)
+#Euclid: Change to
+train_df$pos_negative_ratio <- (prepared_df$Thumbs_Up+1)/(prepared_df$Thumbs_Down+1)
+
+#Euclid: calculate the difference between recent and oldest activities
+# train_df$tot_recent_act_phour  <- prepared_df$recent_total_act / lookback_window / 24
+# train_df$tot_oldest_act_phour  <- prepared_df$oldest_total_act / lookback_window / 24
+# train_df$recent_songs_phour  <- prepared_df$recent_total_song / lookback_window / 24
+# train_df$oldest_songs_phour  <- prepared_df$oldest_total_song / lookback_window / 24
+train_df$diff_act_phour <- (prepared_df$recent_total_act-prepared_df$oldest_total_act) / lookback_window / 24
+train_df$diff_song_phour <- (prepared_df$recent_total_song-prepared_df$oldest_total_song) / lookback_window / 24
+
+
+train_df
 
 ```
 
@@ -285,6 +311,8 @@ window_home_songs  <-  df  %>%
 window_home_songs
 ```
 
+
+
 ```{r}
 # Calculations to obtain user's average number of songs played between ads played
 window_ads_songs  <-  df  %>% 
@@ -316,17 +344,64 @@ df  %>%
 Incorporating all the newly defined business metrics into the main data.frame (prepared_df)
 
 ```{r}
-prepared_df1 <- merge(prepared_df, session_avg, by=c("userId")) %>% 
+#Keep the same data frame to save memory
+
+train_df <- merge(train_df, session_avg, by=c("userId")) %>% 
                 arrange(userId)
   
-prepared_df2 <- merge(prepared_df1, session_avg_length, by=c("userId")) %>% 
+train_df <- merge(train_df, session_avg_length, by=c("userId")) %>% 
                 arrange(userId)
 
-prepared_df3 <- merge(prepared_df2, window_home_songs, by=c("userId")) %>% 
+train_df <- merge(train_df, window_home_songs, by=c("userId")) %>% 
                 arrange(userId)
   
-prepared_df4 <- merge(prepared_df3, window_ads_songs, by=c("userId")) %>% 
+train_df <- merge(train_df, window_ads_songs, by=c("userId")) %>% 
                 arrange(userId)
-prepared_df4
+train_df
 
 ```
+
+
+Up sampling
+
+```{r}
+temp <- train_df %>% filter(churn == 1) %>% 
+      slice(rep(1:n(), 
+            round(nrow(filter(train_df, churn == 0))/
+                    nrow(filter(train_df, churn == 1)),0)-1))
+train_df2 <- bind_rows(train_df, temp)
+
+```
+
+
+
+```{r}
+model_logi <- glm(churn~.-userId,family = binomial, train_df2)
+```
+
+```{r}
+summary(model_logi)
+```
+
+
+
+Performance evaluation using the up-sampled data
+
+```{r}
+predicted_class <- ifelse(model_logi$fitted.values>0.5,1,0)
+confusion_matrix <- confusionMatrix(as.factor(predicted_class),
+                                      train_df2$churn,
+                                    mode = "everything",positive = "1")
+confusion_matrix
+```
+Performance evaluation using the pre-up-sampled data
+
+```{r}
+predicted_class <- ifelse(predict(model_logi,train_df,type="response")>0.5,1,0)
+confusion_matrix <- confusionMatrix(as.factor(predicted_class),
+                                      train_df$churn,
+                                    mode = "everything",positive = "1")
+confusion_matrix
+```
+
+
