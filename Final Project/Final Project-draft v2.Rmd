@@ -16,7 +16,7 @@ library("tidyr")
 
 library("arm")
 library("pROC")
-library("car")
+#library("car")
 library("caret")
 
 library("reshape2")
@@ -68,6 +68,9 @@ df$userAgent[str_detect(df$userAgent,"iPad")] <- "iPad"
 df$userAgent[str_detect(df$userAgent,"iPhone")] <- "iPhone"
 df$userAgent[str_detect(df$userAgent,"Windows")] <- "Windows"
 df$userAgent[str_detect(df$userAgent,"Linux")] <- "Linux"
+
+# add location
+df$location <- str_replace(str_extract(df$location, ", .+"), ", ", "")
 ```
 
 Select a subset of the activities that may be significant predictors. Activities such as going to the home page or setting page that seem to be insignificant are excluded.
@@ -83,7 +86,7 @@ Select a subset of the activities that may be significant predictors. Activities
 Convert some categorical variables in to factors.
 
 ```{r}
-factor_columns <- c("page","auth","method","status","level","gender","userAgent")
+factor_columns <- c("page","auth","method","status","level","gender","userAgent","location") # add last variable
 
 df[factor_columns] <- lapply(df[factor_columns], factor)
 ```
@@ -95,7 +98,7 @@ df$home <- NULL
 df$method <- NULL
 df$status <- NULL
 df$itemInSession <- NULL
-df$location <- NULL
+#df$location <- NULL # we need location to see if this feature affects user churned
 df$lastName <- NULL
 df$firstName <- NULL
 df$auth <- NULL
@@ -361,6 +364,62 @@ train_df
 
 ```
 
+# EDA
+**Distribution of level**
+```{r}
+ggplot(train_df %>% filter(Cancellation_Confirmation == 1), aes(x = end_level)) + 
+    geom_bar(position = position_dodge()) + 
+    theme_classic() + 
+    labs(x = "level of user",
+         title = "distribution of level"
+         )
+```
+
+**Distribution of in app activities**
+```{r}
+ggplot(df, aes(x = page)) + 
+    geom_bar() + 
+    theme_classic() + 
+    theme(axis.text.x = element_text(angle = 90))+
+    labs(x = "user activities",
+         title = "distribution of user activities(original data)")
+```
+**Number of churn by states**
+```{r}
+ggplot(train_df %>% filter(Cancellation_Confirmation== 1), aes(x=fct_infreq(location))) + 
+    geom_bar()+
+    theme_classic() + 
+    theme(axis.text.x = element_text(angle = 90)) + 
+    labs(x = "state", 
+         y = "number of people churned", 
+         title = 'churn by states'
+         )
+```
+
+**Churn ratio by gender**
+```{r}
+ggplot(train_df %>% filter(Cancellation_Confirmation == 1), aes(x = gender))+
+  geom_bar(na.rm = T) +
+  theme_classic() + 
+  labs(title = "churn ratio by gender")
+```
+
+**Collinearity Check for Numeric Variables**
+```{r}
+correlation = cor(train_df %>% select(-c(end_level, gender, userAgent, location, userId)), use = 'pairwise.complete.obs')
+corrplot::corrplot(correlation, 'ellipse', type = 'lower',  order = 'hclust')
+```
+**distribution of activity variables**
+```{r warning=FALSE}
+temp <- train_df %>% select(-c(userId))
+temp %>% 
+  purrr::keep(is.numeric) %>% 
+  cbind(Cancellation_Confirmation = as.factor(train_df$Cancellation_Confirmation)) %>% 
+  gather() %>% 
+  ggplot(aes(value, color = Cancellation_Confirmation)) +
+    facet_wrap(~ key, scales = "free") +
+    geom_density()
+```
 
 Up sampling
 
