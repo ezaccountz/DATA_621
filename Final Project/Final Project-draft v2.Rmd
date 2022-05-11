@@ -14,9 +14,9 @@ library("stringr")
 library("dplyr")
 library("tidyr")
 
-library("arm")
+#library("arm")
 library("pROC")
-#library("car")
+library("car")
 library("caret")
 
 library("reshape2")
@@ -34,7 +34,7 @@ Note:
 
 ```{r}
 #setwd("/Users/dpong/Data 621/Final_Project/Datasets")
-
+setwd("~/Library/CloudStorage/OneDrive-CityUniversityofNewYork/621/final_churn_modeling")
 df <- read.csv("sparkify-medium.csv", stringsAsFactors = FALSE, row.names=1)
 ```
 
@@ -141,7 +141,8 @@ user_df <- df %>% filter(!is.na(song)) %>%
             registration=first(registration),
             end_level=last(level),
             gender=first(gender),
-            userAgent=first(userAgent))
+            userAgent=first(userAgent),
+            location =first(location))
 user_df
 ```
 
@@ -222,7 +223,7 @@ prepared_df
 Calculation of defined features that can be used as predictors for identifying users that are to churn.
 
 ```{r}
-train_df <- dplyr::select(prepared_df,userId,end_level,gender,userAgent)
+train_df <- dplyr::select(prepared_df,userId,end_level,gender,userAgent, location) # add location
 train_df$churn <- as.factor(prepared_df$Cancellation_Confirmation)
 ```
 
@@ -367,7 +368,7 @@ train_df
 # EDA
 **Distribution of level**
 ```{r}
-ggplot(train_df %>% filter(Cancellation_Confirmation == 1), aes(x = end_level)) + 
+ggplot(train_df %>% filter(churn == 1), aes(x = end_level)) + 
     geom_bar(position = position_dodge()) + 
     theme_classic() + 
     labs(x = "level of user",
@@ -386,7 +387,7 @@ ggplot(df, aes(x = page)) +
 ```
 **Number of churn by states**
 ```{r}
-ggplot(train_df %>% filter(Cancellation_Confirmation== 1), aes(x=fct_infreq(location))) + 
+ggplot(train_df %>% filter(as.factor(churn)== 1), aes(x=fct_infreq(location))) + 
     geom_bar()+
     theme_classic() + 
     theme(axis.text.x = element_text(angle = 90)) + 
@@ -398,7 +399,7 @@ ggplot(train_df %>% filter(Cancellation_Confirmation== 1), aes(x=fct_infreq(loca
 
 **Churn ratio by gender**
 ```{r}
-ggplot(train_df %>% filter(Cancellation_Confirmation == 1), aes(x = gender))+
+ggplot(train_df %>% filter(churn == 1), aes(x = gender))+
   geom_bar(na.rm = T) +
   theme_classic() + 
   labs(title = "churn ratio by gender")
@@ -406,7 +407,7 @@ ggplot(train_df %>% filter(Cancellation_Confirmation == 1), aes(x = gender))+
 
 **Collinearity Check for Numeric Variables**
 ```{r}
-correlation = cor(train_df %>% select(-c(end_level, gender, userAgent, location, userId)), use = 'pairwise.complete.obs')
+correlation = cor(train_df %>% purrr::keep(is.numeric) %>% select(-c(userId)), use = 'pairwise.complete.obs')
 corrplot::corrplot(correlation, 'ellipse', type = 'lower',  order = 'hclust')
 ```
 **distribution of activity variables**
@@ -414,9 +415,9 @@ corrplot::corrplot(correlation, 'ellipse', type = 'lower',  order = 'hclust')
 temp <- train_df %>% select(-c(userId))
 temp %>% 
   purrr::keep(is.numeric) %>% 
-  cbind(Cancellation_Confirmation = as.factor(train_df$Cancellation_Confirmation)) %>% 
-  gather() %>% 
-  ggplot(aes(value, color = Cancellation_Confirmation)) +
+  cbind(churn = as.factor(train_df$churn)) %>% 
+  tidyr::gather("key", "value", - churn, factor_key = T) %>% 
+  ggplot(aes(value, color = churn)) +
     facet_wrap(~ key, scales = "free") +
     geom_density()
 ```
