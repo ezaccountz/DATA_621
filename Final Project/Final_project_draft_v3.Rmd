@@ -1,0 +1,361 @@
+---
+title: "DATA_621_Final_Project"
+author: "Chi Pong, Euclid Zhang, Jie Zou, Joseph Connolly, LeTicia Cancel"
+date: "4/19/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE, warning=FALSE}
+library("stringr")
+library("dplyr")
+library("tidyr")
+#library("arm")
+library("pROC")
+library("car")
+library("caret")
+library("reshape2")
+#library("patchwork")
+```
+
+Note:
+
+1.  No user is using multiple device.
+2.  Users stay in the same location.
+3.  All songs are finished before going to the next song.
+4.  There is no "remove from Playlist" record.
+5.  Only users who canceled the service are considered as churned. Free users with no activities are not considered as churned.
+6.  We only have data from 10/1/2018 to 12/1/2018
+
+```{r include = FALSE, warning=FALSE}
+setwd("~/Library/CloudStorage/OneDrive-CityUniversityofNewYork/621/final_churn_modeling")
+df <- read.csv("sparkify-medium.csv", stringsAsFactors = FALSE, row.names=1)
+```
+
+The time of registration for the records of a few users are incorrect (the time of registration is after the user's first log in). Correct the time of registration using the "Submit Registration" page and the session ID
+
+```{r include=FALSE}
+regist_df <- filter(df,df$page=="Submit Registration")
+for (i in c(1:nrow(regist_df))) {
+  temp_df <- df %>% 
+                filter(sessionId==regist_df$sessionId[i]) %>%
+                filter(!is.na(userId)) %>% 
+                mutate(delta=abs(ts-regist_df$ts[i])) %>% 
+                arrange(delta,desc=FALSE)
+  df[!is.na(df$userId) & df$userId==temp_df$userId[1],"registration"] <- regist_df$ts[i]
+}
+```
+
+Filter out the guest records (the ones without a userId)
+
+```{r include=FALSE}
+df <- filter(df,!is.na(userId))
+```
+
+Simplify the user Agent to represent the type of device that the user is using.
+
+```{r include=FALSE}
+df$userAgent[str_detect(df$userAgent,"Macintosh")] <- "Macintosh"
+df$userAgent[str_detect(df$userAgent,"iPad")] <- "iPad"
+df$userAgent[str_detect(df$userAgent,"iPhone")] <- "iPhone"
+df$userAgent[str_detect(df$userAgent,"Windows")] <- "Windows"
+df$userAgent[str_detect(df$userAgent,"Linux")] <- "Linux"
+
+df$location <- str_replace(str_extract(df$location, ", .+"), ", ", "")
+```
+
+Select a subset of the activities that may be significant predictors. Activities such as going to the home page or setting page that seem to be insignificant are excluded.
+
+```{r}
+# selected_pages <- c("NextSong","Roll Advert","Add Friend","Thumbs Up",
+#                     "Add to Playlist", "Upgrade", "Submit Upgrade", "Error",
+#                     "Thumbs Down","Cancel", "Cancellation Confirmation",
+#                     "Downgrade", "Submit Downgrade","Submit Registration")
+# df <- df[df$page %in% selected_pages,]
+```
+
+Convert some categorical variables in to factors.
+
+```{r include=FALSE}
+factor_columns <- c("page","auth","method","status","level","gender","userAgent", "location")
+df[factor_columns] <- lapply(df[factor_columns], factor)
+```
+
+Remove some variables that are not used in our analysis
+
+```{r include=FALSE}
+df$home <- NULL
+df$method <- NULL
+df$status <- NULL
+df$itemInSession <- NULL
+df$lastName <- NULL
+df$firstName <- NULL
+df$auth <- NULL
+```
+
+Create a new variable indicating whether it is a song that the user never listened before.
+
+```{r include=FALSE}
+df <- arrange(df, ts,desc=FALSE)
+df$user_song <- paste0(df$userId, df$artist, df$song)
+temp <- df %>% group_by(user_song) %>% mutate(count=row_number())
+df$new_song <- temp$count
+temp <- NULL
+df$user_song <- NULL
+df$new_song[df$new_song > 1] <- 0
+df$new_song[is.na(df$song)] <- NA
+```
+
+```{r include=FALSE}
+page_df <- df %>% group_by(userId) %>% 
+  count(page) %>% 
+  spread(page, n, fill = 0)
+#Cancel column is identical to "Cancellation Confirmation" so it is removed
+page_df$Cancel <- NULL
+page_df[,2:ncol(page_df)] <- sapply(page_df[,2:ncol(page_df)], as.integer)
+page_df$Total_Activities <- apply(page_df[,2:ncol(page_df)], 1, sum)
+page_df
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+user_df <- df %>% filter(!is.na(song)) %>% 
+  arrange(ts, desc=FALSE) %>% 
+  group_by(userId) %>% 
+  summarise(active_sessions=n_distinct(sessionId),
+            new_songs_listened=sum(new_song),
+            registration=first(registration),
+            end_level=last(level),
+            gender=first(gender),
+            userAgent=first(userAgent),
+            location=first(location))
+user_df
+```
+
+```{r}
+obs_df <- data.frame(userId=unique(df$userId))
+obs_df$start <- ifelse(user_df$registration > 1538352000000, user_df$registration, 1538352000000)
+obs_df$end <- 1543622400000
+temp <- filter(df, page == "Cancellation Confirmation")
+obs_df$end[obs_df$userId %in% temp$userId] <- temp$ts
+# obs_df
+```
+
+```{r}
+prepared_df <- merge(obs_df, user_df, by=c("userId")) %>% 
+                arrange(userId)
+  
+prepared_df <- merge(prepared_df, page_df, by=c("userId")) %>% 
+                arrange(userId)
+names(prepared_df) <- str_replace_all(names(prepared_df), " ", "_")
+prepared_df$Cancellation_Confirmation <- as.factor(prepared_df$Cancellation_Confirmation)
+prepared_df
+```
+
+```{r}
+lookback_window <- 14
+# corrected the mistake by Euclid. Replaced 100 with 1000
+sub_obs_time_frame <- lookback_window * 24 * 3600 * 1000
+```
+
+```{r}
+df <- merge(df, prepared_df[c("userId","start","end")], by=c("userId"))
+df
+```
+
+```{r}
+df_recent <- filter(df, ts >= end - sub_obs_time_frame)
+df_oldest <- filter(df, ts <= start + sub_obs_time_frame)
+```
+
+```{r}
+temp <- df_recent %>% 
+        group_by(userId) %>% 
+        summarise(recent_total_act = n())
+prepared_df <- merge(prepared_df, temp, by=c("userId"), all.x=TRUE)
+temp <- df_recent %>%  filter(page == "NextSong") %>% 
+                        group_by(userId) %>% 
+                        summarise(recent_total_song = n())
+prepared_df <- merge(prepared_df, temp, by=c("userId"), all.x=TRUE)
+temp <- df_oldest %>% 
+        group_by(userId) %>% 
+        summarise(oldest_total_act = n())
+prepared_df <- merge(prepared_df, temp, by=c("userId"), all.x=TRUE)
+temp <- df_oldest %>%  
+        filter(page == "NextSong") %>% 
+        group_by(userId) %>% 
+        summarise(oldest_total_song = n())
+prepared_df <- merge(prepared_df, temp, by=c("userId"), all.x=TRUE)
+temp <- NULL
+prepared_df
+```
+
+Calculation of defined features that can be used as predictors for identifying users that are to churn.
+
+```{r}
+prepared_df$duration_in_hours <- (prepared_df$end - prepared_df$start)/3600/1000
+prepared_df$tot_act_phour <- prepared_df$Total_Activities/prepared_df$duration_in_hours
+prepared_df$songs_phour <- prepared_df$NextSong/prepared_df$duration_in_hours
+prepared_df$tot_tu_phour <- prepared_df$Thumbs_Up/prepared_df$duration_in_hours
+prepared_df$tot_td_phour <- prepared_df$Thumbs_Down/prepared_df$duration_in_hours
+prepared_df$frds_added_phour <- prepared_df$Add_Friend/prepared_df$duration_in_hours
+prepared_df$tot_add2PL_phour <- prepared_df$Add_to_Playlist/prepared_df$duration_in_hours
+prepared_df$HP_visits_phour <- prepared_df$Home/prepared_df$duration_in_hours
+prepared_df$HP_visits_phour <- prepared_df$Home/prepared_df$duration_in_hours
+prepared_df$tot_ads_phour <- prepared_df$Roll_Advert/prepared_df$duration_in_hours
+prepared_df$tot_errs_phour <- prepared_df$Error/prepared_df$duration_in_hours
+prepared_df$upgrade_downgrades_phour <- (prepared_df$Submit_Upgrade + prepared_df$Submit_Downgrade)/prepared_df$duration_in_hours
+prepared_df$upgrade_downgrades <- (prepared_df$Submit_Upgrade + prepared_df$Submit_Downgrade)
+prepared_df$song_ratio <- prepared_df$NextSong / prepared_df$Total_Activities
+prepared_df$new_songs_ratio <- prepared_df$new_songs_listened / prepared_df$NextSong
+prepared_df$pos_negative_ratio <- prepared_df$Thumbs_Up/(prepared_df$Thumbs_Down + 0.0001)
+prepared_df$tot_recent_act_phour  <- prepared_df$recent_total_act / lookback_window / 24
+prepared_df$tot_oldest_act_phour  <- prepared_df$oldest_total_act / lookback_window / 24
+prepared_df$recent_songs_phour  <- prepared_df$recent_total_song / lookback_window / 24
+prepared_df$oldest_songs_phour  <- prepared_df$oldest_total_song / lookback_window / 24
+prepared_df
+```
+
+```{r}
+# Calculation of user's average number of events per session
+session_avg <- df %>% 
+                group_by(userId, sessionId) %>%
+                summarise(events = n(), .groups = 'drop') %>%
+                group_by(userId) %>%
+                summarise(avg_events_per_session = mean(events)) 
+session_avg
+```
+
+```{r}
+# Calculation of user's average session duration
+session_avg_length = df  %>% 
+                    group_by(userId, sessionId) %>%
+                    arrange(ts, .by_group = TRUE) %>% 
+                    # filter(userId==3) %>%
+                    summarise( session_begin_ts = min(ts), 
+                               session_end_ts = max(ts), 
+                               .groups = 'drop') %>% 
+                    group_by(userId) %>% 
+                    summarise( avg_session_duration = mean(session_end_ts-session_begin_ts))
+session_avg_length
+```
+
+```{r}
+# Calculations to obtain user's average number of songs played between home visits
+window_home_songs  <-  df  %>% 
+                       group_by(userId) %>%
+                       arrange(ts, .by_group = TRUE) %>% 
+                       mutate(home_visits = cumsum(case_when( page == 'Home' ~ 1, TRUE ~ 0))) %>%
+                       # summarise(home_button = case_when( page == 'Home' ~ 1, TRUE ~ 0), .groups = 'drop') %>%
+                       group_by(userId, home_visits) %>%
+                       summarise(nsongs = cumsum(sum(case_when (page == 'NextSong' ~ 1, TRUE ~ 0))), 
+                                 .groups = 'drop')  %>%
+                       group_by(userId) %>%
+                       # filter(userId==4) %>%
+                       summarise(avg_songs_btwn_home = mean(nsongs))
+window_home_songs
+```
+
+```{r}
+# Calculations to obtain user's average number of songs played between ads played
+window_ads_songs  <-  df  %>% 
+                       group_by(userId) %>%
+                       arrange(ts, .by_group = TRUE) %>% 
+                       mutate(ads_played = cumsum(case_when( page == 'Roll Advert' ~ 1, TRUE ~ 0))) %>%
+                       # summarise(home_button = case_when( page == 'Home' ~ 1, TRUE ~ 0), .groups = 'drop') %>%
+                       group_by(userId, ads_played) %>%
+                       summarise(nsongs = cumsum(sum(case_when (page == 'NextSong' ~ 1, TRUE ~ 0))), 
+                                 .groups = 'drop')  %>%
+                       group_by(userId) %>%
+                       # filter(userId==4) %>%
+                       summarise(avg_songs_btwn_ads = mean(nsongs))
+window_ads_songs
+```
+
+```{r}
+# analysis of ads playing by level
+df  %>% 
+                       group_by(userId) %>%
+                       arrange(ts, .by_group = TRUE) %>% 
+                       mutate(ads_played = cumsum(case_when( page == 'Roll Advert' ~ 1, TRUE ~ 0))) %>%
+                       group_by(level, ads_played) %>%
+                       summarise (sum=n() , .groups = 'drop' )
+```
+
+Incorporating all the newly defined business metrics into the main data.frame (prepared_df)
+
+```{r}
+prepared_df1 <- merge(prepared_df, session_avg, by=c("userId")) %>% 
+                arrange(userId)
+  
+prepared_df2 <- merge(prepared_df1, session_avg_length, by=c("userId")) %>% 
+                arrange(userId)
+prepared_df3 <- merge(prepared_df2, window_home_songs, by=c("userId")) %>% 
+                arrange(userId)
+  
+prepared_df4 <- merge(prepared_df3, window_ads_songs, by=c("userId")) %>% 
+                arrange(userId)
+prepared_df4
+
+```
+
+
+# EDA
+**Distribution of level**
+```{r}
+ggplot(prepared_df4 %>% filter(Cancellation_Confirmation == 1), aes(x = end_level)) + 
+    geom_bar(position = position_dodge()) + 
+    theme_classic() + 
+    labs(x = "level of user",
+         title = "distribution of level"
+         )
+```
+
+**Distribution of in app activities**
+```{r}
+ggplot(df, aes(x = page)) + 
+    geom_bar() + 
+    theme_classic() + 
+    theme(axis.text.x = element_text(angle = 90))+
+    labs(x = "user activities",
+         title = "distribution of user activities(original data)")
+```
+**Number of churn by states**
+```{r}
+ggplot(prepared_df4 %>% filter(Cancellation_Confirmation== 1), aes(x=fct_infreq(location))) + 
+    geom_bar()+
+    theme_classic() + 
+    theme(axis.text.x = element_text(angle = 90)) + 
+    labs(x = "state", 
+         y = "number of people churned", 
+         title = 'churn by states'
+         )
+```
+
+**Churn ratio by gender**
+```{r}
+ggplot(prepared_df4 %>% filter(Cancellation_Confirmation == 1), aes(x = gender))+
+  geom_bar(na.rm = T) +
+  theme_classic() + 
+  labs(title = "churn ratio by gender")
+```
+
+**Collinearity Check for Numeric Variables**
+```{r}
+correlation = cor(prepared_df %>% select(-c(end_level, gender, userAgent, location, userId)), use = 'pairwise.complete.obs')
+corrplot::corrplot(correlation, 'ellipse', type = 'lower',  order = 'hclust')
+```
+**distribution of activity variables**
+```{r warning=FALSE}
+temp <- prepared_df4 %>% select(-c(userId))
+temp %>% 
+  purrr::keep(is.numeric) %>% 
+  cbind(Cancellation_Confirmation = as.factor(prepared_df4$Cancellation_Confirmation)) %>% 
+  gather() %>% 
+  ggplot(aes(value, color = Cancellation_Confirmation)) +
+    facet_wrap(~ key, scales = "free") +
+    geom_density()
+```
+
