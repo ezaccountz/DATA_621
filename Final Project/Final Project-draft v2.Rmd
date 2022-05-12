@@ -2,7 +2,9 @@
 title: "DATA_621_Final_Project"
 author: "Chi Pong, Euclid Zhang, Jie Zou, Joseph Connolly, LeTicia Cancel"
 date: "4/19/2022"
-output: pdf_document
+output:
+  html_document:
+    df_print: paged
 ---
 
 ```{r setup, include=FALSE}
@@ -227,7 +229,6 @@ train_df <- dplyr::select(prepared_df,userId,end_level,gender,userAgent, locatio
 train_df$churn <- as.factor(prepared_df$Cancellation_Confirmation)
 ```
 
-
 ```{r}
 
 prepared_df$duration_in_hours <- (prepared_df$end - prepared_df$start)/3600/1000
@@ -315,8 +316,6 @@ window_home_songs  <-  df  %>%
 window_home_songs
 ```
 
-
-
 ```{r}
 # Calculations to obtain user's average number of songs played between ads played
 window_ads_songs  <-  df  %>% 
@@ -366,7 +365,21 @@ train_df
 ```
 
 # EDA
+
+### Distributions
+
+By looking at these distribution plots with different constraints. We find:
+
+-   Users with subscription are more likely to churn
+
+-   The most frequent activity that users made is going to next song
+
+-   California has most churned user
+
+-   Males are more likely to churn compared to females
+
 **Distribution of level**
+
 ```{r}
 ggplot(train_df %>% filter(churn == 1), aes(x = end_level)) + 
     geom_bar(position = position_dodge()) + 
@@ -377,6 +390,7 @@ ggplot(train_df %>% filter(churn == 1), aes(x = end_level)) +
 ```
 
 **Distribution of in app activities**
+
 ```{r}
 ggplot(df, aes(x = page)) + 
     geom_bar() + 
@@ -385,9 +399,11 @@ ggplot(df, aes(x = page)) +
     labs(x = "user activities",
          title = "distribution of user activities(original data)")
 ```
+
 **Number of churn by states**
+
 ```{r}
-ggplot(train_df %>% filter(as.factor(churn)== 1), aes(x=fct_infreq(location))) + 
+ggplot(train_df %>% filter(as.factor(churn)== 1), aes(x=forcats::fct_infreq(location))) + 
     geom_bar()+
     theme_classic() + 
     theme(axis.text.x = element_text(angle = 90)) + 
@@ -398,6 +414,7 @@ ggplot(train_df %>% filter(as.factor(churn)== 1), aes(x=fct_infreq(location))) +
 ```
 
 **Churn ratio by gender**
+
 ```{r}
 ggplot(train_df %>% filter(churn == 1), aes(x = gender))+
   geom_bar(na.rm = T) +
@@ -405,12 +422,47 @@ ggplot(train_df %>% filter(churn == 1), aes(x = gender))+
   labs(title = "churn ratio by gender")
 ```
 
+### Relations
+
 **Collinearity Check for Numeric Variables**
+
 ```{r}
 correlation = cor(train_df %>% purrr::keep(is.numeric) %>% select(-c(userId)), use = 'pairwise.complete.obs')
 corrplot::corrplot(correlation, 'ellipse', type = 'lower',  order = 'hclust')
 ```
+
+We plugged in all the predictors, or independent variables, into this correlation matrix to visualize if there are any variables constitute multicollinearity.
+
+At first glance, there is *total thumb up per hour(tot_tu_phour)* that is highly positively correlated with *friends added per hour (frds_added_phour)*. Likewise, *total add to playlist(tot_add2PL_phour)* is highly correlated with *total thumb up per hour(tot_tu_phour)*. Adding to the mix, we see that *total songs play per hour(songs_phour)* and *total activity per hour(tot_act_phour)* are highly positively correlated with the 3 mentioned variables. It makes sense because *total songs played* and *total activities* should be associated the the level of *thumbs-up*, *adding to Play list*, and *friends added*. The obvious decision is to keep one out of the 5 variables here. I'd opt for *friends added per hour(frds_added_phour)*.
+
+On the other hand, *average session duration(Avg_session_duration)* is highly positively correlated with *average event happened per session(avg_events_per_session)*. Let's pick *average session duration(Avg_session_duration)* as the final variable.
+
+Thirdly, the *total thumbs-down per hour (tot_td_phour)* and *total ads played per hour (total_ads_phour)* is highly positively correlated. *Home Page visits per hour (HP_visits_phour)* is highly positively correlated with *total thumbs-down per hour(tot_td_phour)*. *Home Page visits per hour (HP_visits_phour)* is also highly and positively correlated with *total songs play per hour(songs_phour)* and *total activity per hour(tot_act_phour)*. Let's pick *total thumbs-down per hour (tot_td_phour)* among these 5 variables.
+
+In addition, we also spotted 2 pair of highly negatively correlated variables. One is *ratio of new song listened(new_songs_ratio)* and *total error occurred per hour(tot_errs_phour)*. The other pair is *ratio of new song listened(new_songs_ratio)* and *total thumbs-up per hour (tot_tu_phour)*. Out of these 3 variables we will keep *total error occurred per hour(tot_errs_phour)*.
+
+To summarize, here is the list of variables we wanted to remove:
+
+-   tot_add2PL_phour
+
+-   tot_tu_phour
+
+-   songs_phour
+
+-   tot_act_phour
+
+-   avg_events_per_session
+
+-   total_ads_phour
+
+-   HP_visits_phour
+
+-   new_songs_ratio
+
+With that said, here is the list of variables that we eventually wanted to keep:
+
 **distribution of activity variables**
+
 ```{r warning=FALSE}
 temp <- train_df %>% select(-c(userId))
 temp %>% 
@@ -421,6 +473,20 @@ temp %>%
     facet_wrap(~ key, scales = "free") +
     geom_density()
 ```
+
+By looking at the churn categorical variable, which is denoted by 0 and 1, meaning a user Not Churned or Churned respectively, we can analytically visualize the patterns with each of the predictors we have.
+
+At the first glance, *total activities per hour (tot_act_phour)*, *songs played per hour (songs_phour)*, *total thumbs-up per hour (tot_tu_phour)*, *total thumbs-down per hour(tot_td_phour)*, *friends added per hour (frds_added_phour)*, *totals add to playlist per hour (tot_Add2PL_phour)*, *Home Page Visits per hour (HP_visits_phour)* all exihibit the same pattern. It tells me that churn users tend to have more total activities, played more songs, interact more with the app by giving thumbs-up and thumbs-down, added more friends, added more songs to playlist, and have more homepage visits. It makes sense on aggregated average, these churn users knew they were going to churn so they spent more time doing all these activities before they churn.
+
+Total errors encountered per hour really is illustrative of the differentiating behavior by the Churn and Not Churned group. When the rate of errors encountered per hour is less than the threshold of 0.001875, you see people are indifferent with that. But as soon as the error rate is above that threshold, you see a clear sign of an overwhelmingly more churned users than non-churned. This totally makes a lot of sense to us as a team because users tend to churn if they are fed up with a certain frequency of errors they have faced, which, in turn, result in the action of churning the app.
+
+*Upgrades per hour (Upgrades_phour)* and *Downgrades per hour (Downgrades_phour)* really have some fluctuating patterns for non-churn. The way we interpreted it is that both churn and non-churn users do select their rate plan accordingly to their usage and budget. Non-churned users are more actively managing their subscriptions. That's why you see more activities from non-churned users because they have a higher tendency of managing their subscription. That's also an advanced move where you need to spend more time understanding the app in order to know the options of managing subscriptions.
+
+*Song Ratio (song_ratio)* calculates how often is the user going to go to the next song among all the activities. You see that at ratio has a mean of of distribution near 0.8 for both churned and non-churned users. What I notice is there are way more people from non-churned that has that ratio than the churned. Not churned users have exhaustively tried out next song much more than churned users.
+
+*Different activity per hour(Diff_act_phour)* and *different song listened per hour(diff_song_phour)* did illustrate the difference in number of activities or next songs that is done by the users between most recent and oldest period of 14 days. A positive number means there is more recent activities and songs listened than the initial period. When that difference is 0, meaning that they didn't ramp up more activities recently, you can tell naturally there are more users that is in the non-churned category than the churned category, which follows the pattern seen in Song Ratio. However, when the difference is positive, meaning the users did more activities and listened to more songs recently than in the initial period, you see apparently there are more churned users than non-churned users. This totally makes a lot of sense to us.
+
+At the end, we wanted to examine the *average songs played between home page visits (avg_songs_btwn_home)*. We see that the distributions of non-churned users has a peak at a higher level of songs than the counterparts in churned category. Meaning churned users tend to be listening to less songs between homepage visits. That tells me that they are less satisfied with the choice of the songs in their playlist and wanted to go back to Home Page more frequently than the nonchurned counterparts.
 
 Up sampling
 
@@ -433,8 +499,6 @@ train_df2 <- bind_rows(train_df, temp)
 
 ```
 
-
-
 ```{r}
 model_logi <- glm(churn~.-userId,family = binomial, train_df2)
 ```
@@ -442,8 +506,6 @@ model_logi <- glm(churn~.-userId,family = binomial, train_df2)
 ```{r}
 summary(model_logi)
 ```
-
-
 
 Performance evaluation using the up-sampled data
 
@@ -454,6 +516,7 @@ confusion_matrix <- confusionMatrix(as.factor(predicted_class),
                                     mode = "everything",positive = "1")
 confusion_matrix
 ```
+
 Performance evaluation using the pre-up-sampled data
 
 ```{r}
@@ -463,5 +526,3 @@ confusion_matrix <- confusionMatrix(as.factor(predicted_class),
                                     mode = "everything",positive = "1")
 confusion_matrix
 ```
-
-
