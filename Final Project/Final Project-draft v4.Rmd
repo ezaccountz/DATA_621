@@ -27,7 +27,7 @@ library("patchwork")
 
 ```{r}
 #setwd("/Users/dpong/Data 621/Final_Project/Datasets")
-#setwd("~/Library/CloudStorage/OneDrive-CityUniversityofNewYork/621/final_churn_modeling")
+setwd("~/Library/CloudStorage/OneDrive-CityUniversityofNewYork/621/final_churn_modeling")
 df <- read.csv("sparkify-medium.csv", stringsAsFactors = FALSE, row.names=1)
 ```
 
@@ -352,7 +352,7 @@ The followings are the created features for our analysis
 We plugged in all the predictors, or independent variables, into this correlation matrix to visualize if there are any variables constitute multicollinearity.
 
 ```{r fig.height=10, fig.width=13}
-corrplot::corrplot(cor(train_df[,6:(ncol(train_df))], use = "na.or.complete"), 
+corrplot::corrplot(cor(train_df[,5:(ncol(train_df))], use = "na.or.complete"), 
                    method = 'number', type = 'lower', diag = FALSE, tl.srt = 0.1)
 ```
 
@@ -360,7 +360,7 @@ To reduce multicollinearity of our data and reduce the complexity of our model, 
 
 *tot_act_phour* is highly correlated with *songs_phour*, *tot_tu_phour*, *tot_td_phour*, *freds_added_phour*, *tot_add2PL_phour*, *HP_visits_phour*, and *setting_phour*. As song listening is main service here and we would like to know our service's user experience, we would keep *songs_phour* and drop the other variables.
 
-*HP_visits_phour* is highly correlated with *free_ad_phour*. As we would like to know the user's option about the ads, we would keep *free_ad_phour* and drop *HP_visits_phour*
+*HP_visits_phour* is highly correlated with *free_ad_phour*. Likewise, setting_phour is highly positively correlated with HP_visits_phour. setting_phour was already dropped in the previous block. As we would like to know the user's option about the ads, we would keep *free_ad_phour* and drop *HP_visits_phour*
 
 As expected, *avg_events_per_session* and *avg_session_duration* are highly correlated. Longer sessions have more events. We would keep *avg_session_duration* and drop *avg_events_per_session*
 
@@ -394,7 +394,7 @@ We have the following correlations after the highly correlated ones are removed.
 
 
 ```{r fig.height=10, fig.width=10}
-corrplot::corrplot(cor(train_df[,6:(ncol(train_df))], use = "na.or.complete"), 
+corrplot::corrplot(cor(train_df[,5:(ncol(train_df))], use = "na.or.complete"), 
                    method = 'number', type = 'lower', diag = FALSE, tl.srt = 0.1)
 ```
 
