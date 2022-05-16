@@ -482,12 +482,17 @@ train_df %>%
 
 **In the following plots, some variables are log-transformed for the better visualization, they are not transformed in the data for our modeling.**
 
-```{r fig.height=9, fig.width=10, warning=FALSE, echo=FALSE}
 train_df %>% 
   keep(is.numeric) %>% 
-  select(-c(song_ratio, new_songs_ratio, pos_negative_ratio, percent_paid)) %>% 
+  select(-c(song_ratio, new_songs_ratio, pos_negative_ratio, percent_paid)) %>%
   map(., log) %>% 
   as.data.frame() %>% 
+  preProcess(method = c("scale")) %>% 
+  predict(
+    train_df %>% 
+    keep(is.numeric) %>% 
+    select(-c(song_ratio, new_songs_ratio, pos_negative_ratio, percent_paid))
+  ) %>% 
   cbind(churn = as.factor(train_df$churn),
         song_ratio = train_df$song_ratio,
         new_songs_ratio = train_df$new_songs_ratio,
