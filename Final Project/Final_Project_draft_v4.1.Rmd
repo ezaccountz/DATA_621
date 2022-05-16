@@ -482,6 +482,7 @@ train_df %>%
 
 **In the following plots, some variables are log-transformed for the better visualization, they are not transformed in the data for our modeling.**
 
+```{r}
 train_df %>% 
   keep(is.numeric) %>% 
   select(-c(song_ratio, new_songs_ratio, pos_negative_ratio, percent_paid)) %>%
