@@ -428,6 +428,18 @@ iPhone users seem to be more likely to churn than other device users. Probably t
 
 
 **distribution of numeric variables**
+```{r echo=FALSE, fig.height=9, fig.width=10}
+train_df %>% 
+  keep(is.numeric) %>%
+  cbind(churn = as.factor(train_df$churn)) %>% 
+  gather("key", "value", -churn, factor_key = T) %>% 
+  ggplot(aes(value, color = churn)) +
+    facet_wrap(~ key, scales = "free") +
+    geom_density() +
+    theme_classic() + 
+    labs(x = "numeric variables",
+         title = "distribution of numeric variables")
+```
 
 **In the following plots, some variables are log-transformed for the better visualization, they are not transformed in the data for our modeling.**
 
