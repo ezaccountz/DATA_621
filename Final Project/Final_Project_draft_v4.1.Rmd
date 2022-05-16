@@ -309,23 +309,23 @@ The followings are the created features for our analysis
 
 -   tot_act_phour: The total number of user activities / Total number of hours in the observation period
 
-    -   $tot\_act\_phour  = \frac{Total\_Activities}{duration\_in\_hours}$
+    -   $tot\_act\_phour = \frac{Total\_Activities}{duration\_in\_hours}$
 
 -   songs_phour: The total number of songs listened / Total number of hours in the observation period
 
-    -   $songs\_phour  = \frac{NextSong}{duration\_in\_hours}$
+    -   $songs\_phour = \frac{NextSong}{duration\_in\_hours}$
 
 -   tot_tu_phour: The total number of thumbs-ups / Total number of hours in the observation period
 
-    -   $tot\_tu\_phour  = \frac{Thumbs\_Up}{duration\_in\_hours}$
+    -   $tot\_tu\_phour = \frac{Thumbs\_Up}{duration\_in\_hours}$
 
 -   tot_td_phour: The total number of thumbs-downs / Total number of hours in the observation period
 
-    -   $tot\_td\_phour  = \frac{Thumbs\_Down}{duration\_in\_hours}$
+    -   $tot\_td\_phour = \frac{Thumbs\_Down}{duration\_in\_hours}$
 
 -   frds_added_phour: The total number of friends added / Total number of hours in the observation period
 
-    -   $frds\_added\_phour  = \frac{Add\_Friend}{duration\_in\_hours}$
+    -   $frds\_added\_phour = \frac{Add\_Friend}{duration\_in\_hours}$
 
 -   tot_add2PL_phour: The total number of songs added to the play list / Total number of hours in the observation period
 
@@ -333,31 +333,31 @@ The followings are the created features for our analysis
 
 -   HP_visits_phour: The total number of home page visit / Total number of hours in the observation period
 
-    -   $HP\_visits\_phour  = \frac{Home}{duration\_in\_hours}$
+    -   $HP\_visits\_phour = \frac{Home}{duration\_in\_hours}$
 
 -   tot_errs_phour: The total number of error page encountered / Total number of hours in the observation period
 
-    -   $tot\_errs\_phour  = \frac{Error}{duration\_in\_hours}$
+    -   $tot\_errs\_phour = \frac{Error}{duration\_in\_hours}$
 
 -   upgrades_phour: The total number of account level upgrading submitted / Total number of hours in the observation period
 
-    -   $upgrades\_phour  = \frac{Submit\_Upgrade}{duration\_in\_hours}$
+    -   $upgrades\_phour = \frac{Submit\_Upgrade}{duration\_in\_hours}$
 
 -   downgrades_phour: The total number of account level downgrading submitted / Total number of hours in the observation period
 
-    -   $downgrades\_phour  = \frac{Submit\_Downgrade}{duration\_in\_hours}$
+    -   $downgrades\_phour = \frac{Submit\_Downgrade}{duration\_in\_hours}$
 
 -   setting_phour: The total number of setting updates attempted / Total number of hours in the observation period
 
-    -   $settin\_phour  = \frac{Settings}{duration\_in\_hours}$
+    -   $settin\_phour = \frac{Settings}{duration\_in\_hours}$
 
 -   save_setting_phour: The total number of setting updates submitted / Total number of hours in the observation period
 
-    -   $save\_setting\_phour  = \frac{Save\_Settings}{duration\_in\_hours}$
+    -   $save\_setting\_phour = \frac{Save\_Settings}{duration\_in\_hours}$
 
 -   song_ratio: The percentage of the activities that are NextSong (start listening to a song)
 
-    -   $song\_ratio  = \frac{NextSong}{Total\_Activities}$
+    -   $song\_ratio = \frac{NextSong}{Total\_Activities}$
 
 -   new_songs_ratio: The percentage of the songs listened that the user has not listened before (which are the non-repeated songs)
 
@@ -377,7 +377,7 @@ The followings are the created features for our analysis
 
 -   free_ad_ph: The total number of advertisement listened when the user account level = free / Total number of hours in the observation period
 
-    -   $free\_ad\_ph  = \frac{free}{duration\_in\_hours}$
+    -   $free\_ad\_ph = \frac{free}{duration\_in\_hours}$
 
 -   percent_paid: The percentage of the song-listening time that the user's account is in the paid level
 
@@ -522,6 +522,8 @@ Lastly, the target variable that is in the training dataset is observed to be im
 summary(train_df$churn)
 ```
 
+# **5. Modeling and Performance Evaluation**
+
 In order to build a model with higher unbiasedness, we would use the method of upsampling. The method adds duplicate records of the minor class to the sample so that the size of the minor class is adjusted to be close to the size of the major class.
 
 ```{r}
@@ -626,7 +628,7 @@ confusion_matrix
 
 The evaluation using the pre-upsampled data and upsampled data both have a Balanced Accurary of over 91%.
 
-# 5. Conclusion
+# 6. Conclusion and Next Steps
 
 Now let's confirm the findings from our model output
 
