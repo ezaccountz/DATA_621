@@ -505,7 +505,6 @@ train_df %>%
          title = "distribution of numeric variables")
 ```
 
-
 For the user activities *songs_phour*, *tot_errs_phour*, *upgrades_phour*, *downgrades_phour*, and *save_setting_phour*, the higher the number of activities, the more likely the user is going to churn. This may imply that the more the user uses the service, the more unsatisfying the user feels. We wanted to call out that *tot_errs_phour* is very illustrative of what is happening with churn. Churned users have a higher average of *tot_errs_phour* than non-churned.
 
 *Song Ratio (song_ratio)* calculates how often is the user going to go to the next song among all the activities. You see that at ratio has a mean of of distribution near 0.8 for both churned and non-churned users. What I notice is there are way more people from non-churned that has that ratio than the churned. Not churned users have exhaustively tried out next song much more than churned users.
@@ -632,7 +631,6 @@ confusion_matrix
 
 The evaluation using the pre-upsampled data and upsampled data both have a Balanced Accuracy of over 91% and a F1 score over 0.85
 
-
 # 6. Conclusion and Next Steps
 
 Now let's confirm the findings from our model output
@@ -654,7 +652,7 @@ Though our model may help predict the users that may churn so the company can ta
 As Data Science experts and consultants to this fictitious music streaming app company Sparkify, we have the following recommendations:
 
 1.  Improve the user experience of their premium (account level: paid) users, especially removing advertisements that proved to be providing negative customer experience resulting in churn.
-2.  Lower the cadence of ads to the free level users.
+2.  Lower the cadence of ads to the paid level users.
 3.  Remove the frictions encountered by iPhone users.
 4.  Personalization of the offerings of songs. Refine their recommender system to suggest songs or packaged in a way of recommended playlist for each individual user.
 
